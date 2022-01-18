@@ -3,3 +3,8 @@ nextflow
 template-workflow
 .*.swp
 .*.swo
+.DS_STORE
+output/**
+.idea/**
+**/__pycache__
+
