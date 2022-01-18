@@ -1,9 +1,9 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
-    "title": "epi2me-labs/wf-template",
-    "description": "Nextflow workflow template repository.",
-    "url": "https://github.com/epi2me-labs/wf-template",
+    "title": "epi2me-labs/wf-cas9",
+    "description": "Nextflow workflow for multiplexed analysis of Cas9 targeted sequencing.",
+    "url": "https://github.com/epi2me-labs/wf-cas9",
     "type": "object",
     "definitions": {
         "basic_input_output_options": {
@@ -35,10 +35,22 @@
                     "type": "boolean",
                     "description": "Use additional heuristics to identify barcodes from file paths.",
                     "help_text": "Enabling this option will group together files into samples by the presence of strings of the form `barcodeXXX` present in filenames, rather than simply files grouped into directories (as output by MinKNOW and the Guppy basecaller)."
+                },
+                "ref_genome": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "A fasta file reference genome"
+                },
+                "targets": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "A bed file of Cas9 target regions"
                 }
             },
             "required": [
-                "fastq"
+                "fastq",
+                "ref_genome",
+                "targets"
             ]
         },
         "meta_data": {

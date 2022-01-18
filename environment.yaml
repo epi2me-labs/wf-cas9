@@ -1,4 +1,4 @@
-name: epi2melabs-nf-template-workflow
+name: epi2melabs-wf-cas9
 channels:
     - epi2melabs
     - bioconda
@@ -10,3 +10,4 @@ dependencies:
     - pysam
     - fastcat
     - epi2melabs
+    - bedtools
