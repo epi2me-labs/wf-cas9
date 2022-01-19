@@ -11,3 +11,5 @@ dependencies:
     - fastcat
     - epi2melabs
     - bedtools
+    - pybedtools
+    - samtools

@@ -17,7 +17,7 @@ if [[ "$#" -eq 2 ]]; then
 fi
 
 PROJDIR=$1
-INPUT="$PROJDIR/sample_cas9/fastq_cas9"
+INPUT="$PROJDIR/sample_cas9/fastq_pass"
 
 if [[ ! -d "$PROJDIR/sample_cas9" ]];
 then
@@ -34,4 +34,6 @@ then
 #  rm $PROJDIR/grch38/grch38.fasta.gz.fai
 fi
 
-nextflow run . --fastq $INPUT --outdir $PROJDIR/output -w $PROJDIR/workspace -profile local
+nextflow run . --fastq $INPUT --ref_genome $PROJDIR/grch38/grch38.fasta.gz \
+ --targets $PROJDIR/targets.bed --out_dir $PROJDIR/output \
+ -w $PROJDIR/workspace -profile local
