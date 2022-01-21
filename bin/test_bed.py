@@ -2,21 +2,33 @@ from pathlib import Path
 import sys
 from pybedtools import BedTool
 import pandas as pd
+import pysam
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# TODO
+# - Should the alignemt file be limited to primary alignments. I guess it should
 
-targets_file="/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-aln_file="/Users/Neil.Horner/work/testing/cas9/report_test_data/fastq_pass_m4.sam"
+targets_file="/Users/Neil.Horner/work/testing/cas9/test_data/targets.bed"
+aln_file="/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass_m4.sam"
+# aln_file="/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass_m4_10percent.sam"  # 0/1 subsampled file for testing
+ref_genome = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+ref = pysam.FastaFile(ref_genome)
+
 
 # create bam: samtools view -b fastq_pass.sam > fastq_pass.bam
 # bam to bed: bedtools bamtobed -i fastq_pass.bam | bedtools sort > fastq_pass.bed
-sorted_bed = "/Users/Neil.Horner/work/testing/cas9/report_test_data/fastq_pass.bed"
+sorted_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
 
 targets = BedTool(targets_file)
 df_targets = targets.to_dataframe()
 aln = BedTool(sorted_bed)
+aln_df = aln.to_dataframe()
+
+# Note: may have to change this if we are looking for background genome-wide
+chr_used = np.unique(df_targets.chrom)
+sizes = {k: v for (k, v) in zip(ref.references, ref.lengths) if k in chr_used  }
 
 
 # How much coverage to be counted as an overlap (default is 1bp)
@@ -30,7 +42,7 @@ on_target_depth.rename(columns={
     }, inplace=True)
 
 # Will probably not use this table. It's all on the third tutorial table
-on_target_depth.to_csv('output/on_target_depth.csv')
+on_target_depth.to_csv('/Users/Neil.Horner/work/testing/cas9/output/on_target_depth.csv')
 
 
 on_off = aln.coverage(targets).to_dataframe().sort_index()
@@ -52,7 +64,7 @@ df_on_off = pd.DataFrame(
     columns=[['On-target', 'Non-target', 'All']]).T
 
 
-df_on_off.to_csv('output/on_off_targets.csv')
+df_on_off.to_csv('/Users/Neil.Horner/work/testing/cas9/output/coverage_summary.csv')
 
 
 # Plots
@@ -75,49 +87,66 @@ rev_bed = BedTool.from_dataframe(rev)
 # overlaps = pd.concat([rev_overlaps, for_overalps])
 
 # Tiling operation
-aln_df = aln.to_dataframe()
-dfs = []
+
+dfs_fwd = []
+dfs_rev  = []
 tile_size = 100
-for (chrom, strand), df in aln_df.groupby(['chrom', 'strand']):
-    starts = list(range(df.start.min(), df.end.max(), tile_size))
+
+# make some tiles
+tile_dfs = []
+for chrom, size in sizes.items():
+    starts = list(range(0, size, tile_size))
     df = pd.DataFrame.from_dict({'start': starts})
     df['end'] = df.start + tile_size - 1
     df['chrom'] = chrom
-    df['strand'] = strand
-    df = df[['chrom', 'start', 'end', 'strand']]
-    dfs.append(df)
-    break
-tiles = BedTool().from_dataframe(pd.concat(dfs))
+    df = df[['chrom', 'start', 'end']]
+    tile_dfs.append(df)
 
-target_tiles = targets.intersect(tiles).to_dataframe().groupby('name')
+tiles_bed = BedTool().from_dataframe(pd.concat(tile_dfs))
 
-for target, df in target_tiles:
-    t = BedTool().from_dataframe(df)
-    reads_int_tiles = t.intersect(aln)
-    df_reads_target = reads_int_tiles.to_dataframe().groupby('start').count()[['chrom']]
-    df_reads_target.rename(columns={'chrom': 'overlaps'}, inplace=True)
-    sns.lineplot(df_reads_target.index, df_reads_target.overlaps)
-    plt.show()
-    print
-print('p')
+df_all_target_tiles = targets.intersect(tiles_bed).to_dataframe().groupby('name')
 
-    # reads_int_tiles = target_tiles.intersect(aln)
-    # df_reads_target = reads_int_tiles.to_dataframe()
-    # df_reads_target.rename(columns={'score': 'strand'}, inplace=True)
-    #
-    # for strand, dfstr in df_reads_target.groupby(['strand']):
-    #     dfc = dfstr.groupby('start').count()[['chrom']]
-    #     sns.lineplot(dfc.index, dfc.chrom)
-    #     plt.show()
-    #     print
+# I'm assuming I can do this in pybedtools. But just use pandas for now
+fwd_aln = BedTool().from_dataframe(aln_df[aln_df.strand == '+'])
+rev_aln = BedTool().from_dataframe(aln_df[aln_df.strand == '-'])
 
 
-# hits = []
-# for target in targets:
-#     b = BedTool(str(target), from_string=True)
-#     target_hits = aln.intersect(b).to_dataframe()
-#     target_hits['tname'] = target.name
-#     hits.append(target_hits)
+def get_target_overlaps(df_target_tiles_):
+    t = BedTool().from_dataframe(df_target_tiles_)
+    fwd_reads_int_tiles = t.intersect(fwd_aln)
+    rev_reads_int_tiles = t.intersect(rev_aln)
+    # These can be variable length. Zero hits are no included
+    df_fwd_tile_cov = \
+        fwd_reads_int_tiles.to_dataframe().groupby('start').count()[['chrom']]
+    df_fwd_tile_cov.rename(columns={'chrom': 'overlaps'}, inplace=True)
+    df_rev_tile_cov = \
+        rev_reads_int_tiles.to_dataframe().groupby('start').count()[['chrom']]
+    df_rev_tile_cov.rename(columns={'chrom': 'overlaps'}, inplace=True)
+
+    ## Merge back to the tiles so we don't lose uncovered tiles
+    f = df_target_tiles_.merge(df_fwd_tile_cov[['overlaps']], left_on='start',
+                           right_index=True, how='left')
+    r = df_target_tiles_.merge(df_rev_tile_cov[['overlaps']], left_on='start',
+                               right_index=True, how='left')
+    result = f.merge(r[['start', 'overlaps']], left_on='start', right_on='start',
+            suffixes=['_f', '_r']).fillna(0)
+    return result
+
+
+ # in production version we may want to do each target in seperate process
+ # for now do all here
+results = []
+
+
+for target, df_target_tiles in df_all_target_tiles:
+    result = get_target_overlaps(df_target_tiles)
+    results.append(result)
+
+
+result_df = pd.concat(results).reset_index(drop=True)
+result_df.rename(columns={'name': 'target'}, inplace=True)
+result_df.to_csv("/Users/Neil.Horner/work/testing/cas9/output/target_coverage.csv")
+
 
 
 

@@ -101,6 +101,19 @@ process align_reads {
     """
 }
 
+process overlaps {
+    label "cas9"
+    input:
+        tuple val(sample_id), path alignment
+    output:
+        // something like this
+        tuple val(sample_id), path('${sample_id}_overlaps.csv')
+    script:
+    """
+    target_overlaps.py
+    """
+}
+
 
 
 
@@ -157,8 +170,8 @@ workflow pipeline {
             build_index.out.index,
             ref_genome,
             summariseReads.out.reads
-
         )
+        overlaps(align_reads.aligned_reads)
 
 //         report = makeReport(software_versions.collect(),
 //                         workflow_params
