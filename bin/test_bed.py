@@ -139,6 +139,7 @@ results = []
 
 
 for target, df_target_tiles in df_all_target_tiles:
+    df_target_tiles.sort_values(by='start', inplace=True)
     result = get_target_overlaps(df_target_tiles)
     results.append(result)
 

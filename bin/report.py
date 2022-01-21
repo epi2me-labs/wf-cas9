@@ -9,36 +9,53 @@ from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
 from bokeh.layouts import gridplot
+from bokeh.models import Legend
 import pandas as pd
 
 
-
-def target_coverage_plots(report: WFReport, target_coverage: Path):
+def plot_target_coverage(report: WFReport, target_coverage: Path):
     section = report.add_section()
     section.markdown('''
     ### Target coverage 
     ''')
 
-    dfg = pd.read_csv(target_coverage, index_col=0).groupby('target')#
+    dfg = pd.read_csv(target_coverage, index_col=0).groupby('target')
 
+    ncols = 5
     plots = []
-    for target, df in dfg:
+    for i, (target, df) in enumerate(dfg):
         chrom = df.loc[df.index[0], 'chrom']
         p = lines.line(
             [df.start.values, df.start.values],  # x-values
             [df.overlaps_f, df.overlaps_r],      # y-values
             title="{}".format(target),
             x_axis_label='{}'.format(chrom),
-            y_axis_label='Coverage',
-            colors=['blue', 'red'])
+            y_axis_label='',
+            colors=['#1A85FF', '#D41159']
+            )
         p.xaxis.formatter.use_scientific = False
         p.xaxis.major_label_orientation = 3.14 / 6
+        if i == ncols - 1:
+            legend = Legend(
+                items=[("+", p.renderers[0:1]), ("-", p.renderers[1:])])
+            p.add_layout(legend, 'right')
+
         plots.append(p)
 
-
-    grid = gridplot(plots, ncols=5, plot_width=250, plot_height=200)
+    grid = gridplot(plots, ncols=5, width=250, height=200)
 
     section.plot(grid)
+
+
+def make_coverage_summary_table(report: WFReport, table_file: Path):
+    section = report.add_section()
+    section.markdown('''
+        ### TargetSummary 
+        ''')
+    df = pd.read_csv(table_file)
+    df.iloc[:, 1:] = df.iloc[:, 1:].astype(int)
+    df.rename(columns={df.columns[0]: ""}, inplace=True)
+    section.table(df, searchable=False, paging=False)
 
 
 def main():
@@ -78,7 +95,8 @@ def main():
     report.add_section(
         section=scomponents.params_table(args.params))
 
-    target_coverage_plots(report, args.target_coverage)
+    make_coverage_summary_table(report, args.coverage_summary)
+    plot_target_coverage(report, args.target_coverage)
 
     # write report
     report.write(args.report)
