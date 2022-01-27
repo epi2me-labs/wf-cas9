@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
 
     ref = pysam.FastaFile(args.ref_genome)
-    stats = pd.read_csv(args.seq_stats)
+    stats = pd.read_csv(args.seq_stats, index_col=0, sep='\t')
     # create bam: samtools view -b fastq_pass.sam > fastq_pass.bam
     # bam to bed: bedtools bamtobed -i fastq_pass.bam | bedtools sort > fastq_pass.bed
     # sorted_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
@@ -89,17 +89,17 @@ def main():
     }, inplace=True)
 
     # Will probably not use this table. It's all on the third tutorial table
-    on_target_depth.to_csv(
-        '{}_on_target_depth.csv'.format(args.sample_id))
+    # on_target_depth.to_csv(
+    #     '{}_on_target_depth.csv'.format(args.sample_id))
 
     # Try to map target name to aln
     # aln_test = aln.intersect(targets, wb=True).to_dataframe().sort_index()
     ###
 
-    header = ['chrom', 'start', 'stop', '1', '2', 'strand', '3', 't_start', 't_end',
+    header = ['chrom', 'start', 'stop', 'seq_id', '2', 'strand', '3', 't_start', 't_end',
               'target', 'overlap_bases', '6', '7', 'read_len', 'frac_overlap']
     on_off = aln.coverage(targets).to_dataframe(names=header).sort_index()
-
+    on_off = on_off.merge(stats[['mean_quality']], left_on='seq_id', right_on='read_id')
     on_off.drop(columns=[x for x in header if x.isnumeric()], inplace=True)
     on_off.rename(columns={
         'blockCount': 'frac_overlap',
@@ -126,13 +126,6 @@ def main():
 
     df_on_off.to_csv(
         '{}_coverage_summary.csv'.format(args.sample_id))
-    f = on_off[on_off['strand'] == '-'].groupby(
-                        ['target']).count()['chrom']
-    r = on_off[on_off['strand'] == '+'].groupby(
-                        ['target']).count()['chrom']
-    bias = (f - r) / (f + r)
-    mean_read_len = on_off.groupby(['target']).mean()['read_len']
-
 
     # Plots
     # Intersect loses strand information, so do intersection on each strand
@@ -173,15 +166,28 @@ def main():
         "{}_target_coverage.csv".format(args.sample_id))
 
     # target summaries table
+    f = on_off[on_off['strand'] == '-'].groupby(
+        ['target']).count()['chrom']
+    r = on_off[on_off['strand'] == '+'].groupby(
+        ['target']).count()['chrom']
+    bias = (f - r) / (f + r)
+    mean_read_len = on_off.groupby(['target']).mean()['read_len']
+    result_df['unstranded_overlaps'] = result_df.overlaps_f + result_df.overlaps_r
+    median_coverage = result_df.groupby(['target']).median()['unstranded_overlaps']
+    result_df['total'] = result_df.overlaps_f + result_df.overlaps_r
+    kbases = result_df.groupby(['target']).sum()[['total']]
+    mean_quality = on_off.groupby(['target']).mean()[['mean_quality']]
+    on_target_depth['kbases'] = kbases
+    on_target_depth['median_coverage'] = median_coverage
+    on_target_depth['mean_quality'] = mean_quality
+    on_target_depth['mean_read_len'] = mean_read_len
+    on_target_depth['starnd_bias'] = bias
 
-    df['unstranded_overlaps'] = df.overlaps_f + df.overlaps_r
-    median_coverage = df.groupby(['target']).median()['unstranded_overlaps']
-    kbases = df.groupby(['target']).sum()[['total']]
-    # mean score
-    #strand_bias = bias
-    # mean read length -> mean_read_len
+    on_target_depth.to_csv('target_summary.csv')
 
-    print(p)
+
+
+    # print(p)
 
 
 
@@ -190,5 +196,5 @@ if __name__ == '__main__':
     aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
     genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
     stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
-    sys.argv.extend([target_file, aln_bed, genome_file, stats_file, 'test'])
+    sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
     main()

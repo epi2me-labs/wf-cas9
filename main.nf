@@ -104,7 +104,14 @@ process align_reads {
 }
 
 process overlaps {
-    /* Call the python processing script and get back CSVs that will be used in the report */
+    /* Call the python processing script and get back CSVs that will be used in the report
+    emits
+        target_coverage: tiled csv for creating plots
+        coverage summary: csv for table with stats for all targets aggregated
+        target_summary: csv with summary info for each plot
+
+
+     */
     label "cas9"
     input:
         path targets_bed
@@ -114,6 +121,7 @@ process overlaps {
     output:
         tuple val(sample_id), path('*coverage_summary.csv'), emit: coverage_summary
         tuple val(sample_id), path('*target_coverage.csv'), emit: target_coverage
+        tuple val(sample_id), path('*target_summary.csv'), emit: target_summary
     script:
     """
     target_overlaps.py \
