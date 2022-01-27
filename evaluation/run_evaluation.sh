@@ -9,11 +9,11 @@ if [[ "$#" -lt 1 ]]; then
 fi
 
 if [[ "$#" -eq 1 ]]; then
-    config=''
+    CONFIG="-c nextflow_eval.config"
 fi
 
 if [[ "$#" -eq 2 ]]; then
-  config="-c $2";
+  CONFIG="-c $2";
 fi
 
 PROJDIR=$1
@@ -34,6 +34,6 @@ then
 #  rm $PROJDIR/grch38/grch38.fasta.gz.fai
 fi
 
-nextflow run . --fastq $INPUT --ref_genome $PROJDIR/grch38/grch38.fasta.gz \
+nextflow run ../ --fastq $INPUT --ref_genome $PROJDIR/grch38/grch38.fasta.gz \
  --targets $PROJDIR/targets.bed --out_dir $PROJDIR/output \
- -w $PROJDIR/workspace -profile local
+ -w $PROJDIR/workspace -profile local -resume $CONFIG

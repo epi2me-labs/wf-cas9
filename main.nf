@@ -94,43 +94,57 @@ process align_reads {
         path reference
         tuple val(sample_id), file(fastq_reads)
     output:
-        tuple val(sample_id), path("${sample_id}.sam"), emit: aligned_reads
+        tuple val(sample_id), path("${sample_id}.sam"), emit: sam
+        tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
     script:
     """
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
+    bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
     """
 }
 
 process overlaps {
+    /* Call the python processing script and get back CSVs that will be used in the report */
     label "cas9"
     input:
-        tuple val(sample_id), path alignment
+        path targets_bed
+        path genome
+        tuple val(sample_id),
+              path(alignment_bed)
     output:
-        // something like this
-        tuple val(sample_id), path('${sample_id}_overlaps.csv')
+        tuple val(sample_id), path('*coverage_summary.csv'), emit: coverage_summary
+        tuple val(sample_id), path('*target_coverage.csv'), emit: target_coverage
     script:
     """
-    target_overlaps.py
+    target_overlaps.py \
+    $targets_bed \
+    $alignment_bed \
+    $genome \
+    $sample_id
     """
 }
-
-
-
 
 process makeReport {
    label "cas9"
     input:
         path "versions/*"
         path "params.json"
-        tuple val(sample_ids), path(seq_summaries)
+        tuple val(sample_ids),
+              path(seq_summaries),
+              path(coverage_summary),
+              path(target_coverage)
     output:
         path "wf-cas9-*.html", emit: report
     script:
         report_name = "wf-cas9-" + params.report_name + '.html'
     """
     report.py $report_name \
+        --summaries $seq_summaries \
         --versions versions \
-        --params params.json
+        --params params.json \
+        --coverage_summary $coverage_summary \
+        --target_coverage $target_coverage \
+        --sample_ids $sample_ids
     """
 }
 
@@ -140,14 +154,27 @@ process makeReport {
 // decoupling the publish from the process steps.
 process output {
     // publish inputs to output directory
-   label "cas9"
-    publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
+
+    publishDir "${params.out_dir}/output/${sample_id}", mode: 'copy', pattern: "*"
+    input:
+        tuple val(sample_id), path(fname)
+    output:
+        path fname
+    """
+    echo "Writing output files"
+    echo $fname
+    """
+}
+
+process output_report {
+    publishDir "${params.out_dir}", mode: 'copy', pattern: "*report.html"
+
     input:
         path fname
     output:
         path fname
     """
-    echo "Writing output files"
+    echo "Copying report"
     """
 }
 
@@ -171,14 +198,20 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads
         )
-        overlaps(align_reads.aligned_reads)
+        overlaps(targets,
+                ref_genome,
+                align_reads.out.bed
+        )
 
-//         report = makeReport(software_versions.collect(),
-//                         workflow_params
-//                         summariseReads.out.stats
-//                         )
+        report = makeReport(software_versions.collect(),
+                        workflow_params,
+                        summariseReads.out.stats
+                        .join(overlaps.out.coverage_summary)
+                        .join(overlaps.out.target_coverage)
+                        )
     emit:
         results = summariseReads.out.stats
+        report 
         // TODO: use something more useful as telemetry
         telemetry = workflow_params
 }
@@ -205,6 +238,7 @@ workflow {
 
 
     pipeline(samples, ref_genome, targets)
-//     output(pipeline.out.results)
+    output(pipeline.out.results)
+    output_report(pipeline.out.report)
     end_ping(pipeline.out.telemetry)
 }

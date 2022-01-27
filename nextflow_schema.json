@@ -17,6 +17,10 @@
                     "default": "output",
                     "description": "Directory for output of all user-facing files."
                 },
+                "threads": {
+                    "type": "integer",
+                    "default": 8
+                },
                 "fastq": {
                     "type": "string",
                     "format": "path",

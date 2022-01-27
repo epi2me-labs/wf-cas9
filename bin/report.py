@@ -76,18 +76,27 @@ def main():
         "--commit", default='unknown',
         help="git commit of the executed workflow")
     parser.add_argument(
+        "--sample_ids", required=True, nargs='+',
+        help="List of sample ids")
+    parser.add_argument(
         "--coverage_summary", required=True, type=Path,
         help="Contigency table coverage summary csv")
     parser.add_argument(
         "--target_coverage", required=True, type=Path,
         help="Tiled coverage for each target")
-
     args = parser.parse_args()
 
     report = WFReport(
-        "Workflow Template Sequencing report", "wf-template",
+        "Workflow Template Sequencing report", "wf-cas9",
         revision=args.revision, commit=args.commit)
 
+    # Add reads summary section
+    for id_, summ in zip(args.sample_ids, args.summaries):
+        report.add_section(
+            section=fastcat.full_report(
+                [summ],
+                header='#### Read stats: {}'.format(id_)
+            ))
     report.add_section(
         section=fastcat.full_report(args.summaries))
     report.add_section(
@@ -104,14 +113,14 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    sys.argv.extend([
-        '/Users/Neil.Horner/work/testing/cas9/output/report.html',
-        '--summaries', '/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.stats',
-        '--versions', '/Users/Neil.Horner/work/testing/cas9/test_data/versions.txt',
-        '--params', '/Users/Neil.Horner/work/testing/cas9/test_data/params.json',
-        
-        '--coverage_summary', '/Users/Neil.Horner/work/testing/cas9/output/coverage_summary.csv',
-        '--target_coverage', '/Users/Neil.Horner/work/testing/cas9/output/target_coverage.csv'
-    ])
+    # sys.argv.extend([
+    #     '/Users/Neil.Horner/work/testing/cas9/output/report.html',
+    #     '--summaries', '/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.stats',
+    #     '--versions', '/Users/Neil.Horner/work/testing/cas9/test_data/versions.txt',
+    #     '--params', '/Users/Neil.Horner/work/testing/cas9/test_data/params.json',
+    #
+    #     '--coverage_summary', '/Users/Neil.Horner/work/testing/cas9/output/coverage_summary.csv',
+    #     '--target_coverage', '/Users/Neil.Horner/work/testing/cas9/output/target_coverage.csv'
+    # ])
 
     main()
