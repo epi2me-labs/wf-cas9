@@ -50,10 +50,20 @@ def plot_target_coverage(report: WFReport, target_coverage: Path):
 def make_coverage_summary_table(report: WFReport, table_file: Path):
     section = report.add_section()
     section.markdown('''
-        ### TargetSummary 
+        ### Summary on and off-target reads 
         ''')
     df = pd.read_csv(table_file)
-    df.iloc[:, 1:] = df.iloc[:, 1:].astype(int)
+    # df.iloc[:, 1:] = df.iloc[:, 1:].astype(int)
+    df.rename(columns={df.columns[0]: ""}, inplace=True)
+    section.table(df, searchable=False, paging=False)
+
+
+def make_target_summary_table(report: WFReport, table_file: Path):
+    section = report.add_section()
+    section.markdown('''
+        ### Summary of each target
+        ''')
+    df = pd.read_csv(table_file)
     df.rename(columns={df.columns[0]: ""}, inplace=True)
     section.table(df, searchable=False, paging=False)
 
@@ -84,6 +94,9 @@ def main():
     parser.add_argument(
         "--target_coverage", required=True, type=Path,
         help="Tiled coverage for each target")
+    parser.add_argument(
+        "--target_summary", required=True, type=Path,
+        help="Summary stats for each target. CSV.")
     args = parser.parse_args()
 
     report = WFReport(
@@ -99,6 +112,7 @@ def main():
             ))
 
     make_coverage_summary_table(report, args.coverage_summary)
+    make_target_summary_table(report, args.target_sumamry)
     plot_target_coverage(report, args.target_coverage)
 
     report.add_section(

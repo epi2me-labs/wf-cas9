@@ -117,7 +117,8 @@ process overlaps {
         path targets_bed
         path genome
         tuple val(sample_id),
-              path(alignment_bed)
+              path(alignment_bed),
+              path(seq_stats)
     output:
         tuple val(sample_id), path('*coverage_summary.csv'), emit: coverage_summary
         tuple val(sample_id), path('*target_coverage.csv'), emit: target_coverage
@@ -128,7 +129,8 @@ process overlaps {
     $targets_bed \
     $alignment_bed \
     $genome \
-    $sample_id
+    $sample_id \
+    $seq_stats
     """
 }
 
@@ -140,7 +142,8 @@ process makeReport {
         tuple val(sample_ids),
               path(seq_summaries),
               path(coverage_summary),
-              path(target_coverage)
+              path(target_coverage),
+              path(target_summary)
     output:
         path "wf-cas9-*.html", emit: report
     script:
@@ -152,7 +155,8 @@ process makeReport {
         --params params.json \
         --coverage_summary $coverage_summary \
         --target_coverage $target_coverage \
-        --sample_ids $sample_ids
+        --sample_ids $sample_ids \
+        --target_summary $target_summary
     """
 }
 
@@ -209,6 +213,7 @@ workflow pipeline {
         overlaps(targets,
                 ref_genome,
                 align_reads.out.bed
+                .join(summariseReads.out.stats)
         )
 
         report = makeReport(software_versions.collect(),
@@ -216,6 +221,7 @@ workflow pipeline {
                         summariseReads.out.stats
                         .join(overlaps.out.coverage_summary)
                         .join(overlaps.out.target_coverage)
+                        .join(overlaps.out.target_summary)
                         )
     emit:
         results = summariseReads.out.stats

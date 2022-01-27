@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+from functools import reduce
 from pathlib import Path
 import math
 import sys
@@ -71,8 +72,10 @@ def main():
     targets = BedTool(args.targets)
     df_targets = targets.to_dataframe()
     aln = BedTool(args.alignment_bed)
-    aln = aln.intersect(targets, wo=True)
+    aln_hits = aln.intersect(targets, wo=True)
     aln_df = aln.to_dataframe()
+
+    aln_off =
 
     # Note: may have to change this if we are looking for background genome-wide
     chr_used = np.unique(df_targets.chrom)
@@ -82,6 +85,7 @@ def main():
     # How much coverage to be counted as an overlap (default is 1bp)
     on_target_depth = targets.coverage(aln).to_dataframe().sort_index()
     on_target_depth.rename(columns={
+        'name': 'target',
         'score': 'num_overlaps',
         'strand': 'target_bases_with_aln',
         'thickStart': 'target_len',
@@ -166,22 +170,27 @@ def main():
         "{}_target_coverage.csv".format(args.sample_id))
 
     # target summaries table
-    f = on_off[on_off['strand'] == '-'].groupby(
+    f = on_off[on_off['strand'] == '+'].groupby(
         ['target']).count()['chrom']
-    r = on_off[on_off['strand'] == '+'].groupby(
+    r = on_off[on_off['strand'] == '_'].groupby(
         ['target']).count()['chrom']
     bias = (f - r) / (f + r)
-    mean_read_len = on_off.groupby(['target']).mean()['read_len']
-    result_df['unstranded_overlaps'] = result_df.overlaps_f + result_df.overlaps_r
-    median_coverage = result_df.groupby(['target']).median()['unstranded_overlaps']
-    result_df['total'] = result_df.overlaps_f + result_df.overlaps_r
-    kbases = result_df.groupby(['target']).sum()[['total']]
+    bias.columns = ['strand_bias']
+    mean_read_len = on_off.groupby(['target']).mean()[['read_len']]
+    result_df['median_coverage'] = result_df.overlaps_f + result_df.overlaps_r
+    median_coverage = result_df.groupby(['target']).median()[['median_coverage']]
+    result_df['kbases'] = result_df.overlaps_f + result_df.overlaps_r
+    kbases = result_df.groupby(['target']).sum()[['kbases']]
     mean_quality = on_off.groupby(['target']).mean()[['mean_quality']]
-    on_target_depth['kbases'] = kbases
-    on_target_depth['median_coverage'] = median_coverage
-    on_target_depth['mean_quality'] = mean_quality
-    on_target_depth['mean_read_len'] = mean_read_len
-    on_target_depth['starnd_bias'] = bias
+
+    frames = [on_target_depth, kbases,  median_coverage, mean_quality,
+              mean_read_len, bias]
+    on_target_depth = reduce(lambda left, right: pd.merge(
+        left, right, on='target', how='left'), frames)
+    on_target_depth = on_target_depth.rename(
+        columns={'read_len': 'mean_read_len', 'chrom_x': 'chrom'})\
+        .sort_values(by=['chrom', 'start'])\
+        .drop(columns=['chrom_y'])
 
     on_target_depth.to_csv('target_summary.csv')
 
@@ -192,9 +201,9 @@ def main():
 
 
 if __name__ == '__main__':
-    target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-    aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
-    genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
-    stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
-    sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
+    # target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
+    # aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
+    # genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+    # stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
+    # sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
     main()
