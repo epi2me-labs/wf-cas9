@@ -2,6 +2,7 @@
 
 import argparse
 from pathlib import Path
+import math
 import sys
 from pybedtools import BedTool
 import pandas as pd
@@ -12,6 +13,17 @@ import matplotlib.pyplot as pl
 
 
 def get_target_overlaps(df_target_tiles_, fwd_aln, rev_aln):
+    """Get dataframe of read coverage across a target.
+
+    :returns
+        pd.Dataframe for a target with columns
+            chrom
+            start: start of tle
+            end: end of tile
+            name: target name
+            overlaps_f: num positive strand overlaps
+            overlaps_r: num negative strand overlaps
+    """
     t = BedTool().from_dataframe(df_target_tiles_)
     fwd_reads_int_tiles = t.intersect(fwd_aln)
     rev_reads_int_tiles = t.intersect(rev_aln)
@@ -45,11 +57,12 @@ def main():
     parser.add_argument("alignment_bed", help="alignment")
     parser.add_argument("ref_genome", help='Reference genome fasta')
     parser.add_argument("sample_id", help="alignment")
+    parser.add_argument("seq_stats", help="Sequence summary stats")
 
     args = parser.parse_args()
 
     ref = pysam.FastaFile(args.ref_genome)
-
+    stats = pd.read_csv(args.seq_stats)
     # create bam: samtools view -b fastq_pass.sam > fastq_pass.bam
     # bam to bed: bedtools bamtobed -i fastq_pass.bam | bedtools sort > fastq_pass.bed
     # sorted_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
@@ -58,6 +71,7 @@ def main():
     targets = BedTool(args.targets)
     df_targets = targets.to_dataframe()
     aln = BedTool(args.alignment_bed)
+    aln = aln.intersect(targets, wo=True)
     aln_df = aln.to_dataframe()
 
     # Note: may have to change this if we are looking for background genome-wide
@@ -67,7 +81,6 @@ def main():
 
     # How much coverage to be counted as an overlap (default is 1bp)
     on_target_depth = targets.coverage(aln).to_dataframe().sort_index()
-
     on_target_depth.rename(columns={
         'score': 'num_overlaps',
         'strand': 'target_bases_with_aln',
@@ -79,8 +92,15 @@ def main():
     on_target_depth.to_csv(
         '{}_on_target_depth.csv'.format(args.sample_id))
 
-    on_off = aln.coverage(targets).to_dataframe().sort_index()
+    # Try to map target name to aln
+    # aln_test = aln.intersect(targets, wb=True).to_dataframe().sort_index()
+    ###
 
+    header = ['chrom', 'start', 'stop', '1', '2', 'strand', '3', 't_start', 't_end',
+              'target', 'overlap_bases', '6', '7', 'read_len', 'frac_overlap']
+    on_off = aln.coverage(targets).to_dataframe(names=header).sort_index()
+
+    on_off.drop(columns=[x for x in header if x.isnumeric()], inplace=True)
     on_off.rename(columns={
         'blockCount': 'frac_overlap',
         'thickEnd': 'target_overlap',
@@ -89,6 +109,13 @@ def main():
 
     on = on_off[on_off['frac_overlap'] > 0]
     off = on_off[on_off['frac_overlap'] == 0]
+
+    # Move this up?
+    # Map target names back the coverage df
+    # on['target_name'] = on.apply(lambda row: )
+    # median_cov = pd.DataFrame(on.groupby(['tile_start', 'target']).count())
+    # for k in median_cov:
+    #     print(k)
 
     df_on_off = pd.DataFrame(
         [[len(on), on.read_len.sum() / 1000, on.read_len.mean()],
@@ -99,9 +126,15 @@ def main():
 
     df_on_off.to_csv(
         '{}_coverage_summary.csv'.format(args.sample_id))
+    f = on_off[on_off['strand'] == '-'].groupby(
+                        ['target']).count()['chrom']
+    r = on_off[on_off['strand'] == '+'].groupby(
+                        ['target']).count()['chrom']
+    bias = (f - r) / (f + r)
+    mean_read_len = on_off.groupby(['target']).mean()['read_len']
+
 
     # Plots
-
     # Intersect loses strand information, so do intersection on each strand
     tile_size = 100
 
@@ -139,10 +172,23 @@ def main():
     result_df.to_csv(
         "{}_target_coverage.csv".format(args.sample_id))
 
+    # target summaries table
+
+    df['unstranded_overlaps'] = df.overlaps_f + df.overlaps_r
+    median_coverage = df.groupby(['target']).median()['unstranded_overlaps']
+    kbases = df.groupby(['target']).sum()[['total']]
+    # mean score
+    #strand_bias = bias
+    # mean read length -> mean_read_len
+
+    print(p)
+
+
 
 if __name__ == '__main__':
-    # target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-    # aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
-    # genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
-    # sys.argv.extend([target_file, aln_bed, genome_file, 'test'])
+    target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
+    aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
+    genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+    stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
+    sys.argv.extend([target_file, aln_bed, genome_file, stats_file, 'test'])
     main()

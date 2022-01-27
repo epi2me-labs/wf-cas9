@@ -211,7 +211,7 @@ workflow pipeline {
                         )
     emit:
         results = summariseReads.out.stats
-        report 
+        report
         // TODO: use something more useful as telemetry
         telemetry = workflow_params
 }

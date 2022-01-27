@@ -97,15 +97,14 @@ def main():
                 [summ],
                 header='#### Read stats: {}'.format(id_)
             ))
-    report.add_section(
-        section=fastcat.full_report(args.summaries))
+
+    make_coverage_summary_table(report, args.coverage_summary)
+    plot_target_coverage(report, args.target_coverage)
+
     report.add_section(
         section=scomponents.version_table(args.versions))
     report.add_section(
         section=scomponents.params_table(args.params))
-
-    make_coverage_summary_table(report, args.coverage_summary)
-    plot_target_coverage(report, args.target_coverage)
 
     # write report
     report.write(args.report)
