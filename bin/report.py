@@ -10,7 +10,9 @@ from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
 from bokeh.layouts import gridplot
 from bokeh.models import Legend
+from natsort import natsorted
 import pandas as pd
+
 
 
 def plot_target_coverage(report: WFReport, target_coverage: Path):
@@ -25,24 +27,30 @@ def plot_target_coverage(report: WFReport, target_coverage: Path):
     plots = []
     for i, (target, df) in enumerate(dfg):
         chrom = df.loc[df.index[0], 'chrom']
+        ymax = max(df.overlaps_f.max(), df.overlaps_r.max())
+        ylim = [0, ymax * 1.05]  # a bit of space at top of plot
         p = lines.line(
             [df.start.values, df.start.values],  # x-values
             [df.overlaps_f, df.overlaps_r],      # y-values
             title="{}".format(target),
             x_axis_label='{}'.format(chrom),
             y_axis_label='',
-            colors=['#1A85FF', '#D41159']
+            colors=['#1A85FF', '#D41159'],
+            ylim=ylim
             )
         p.xaxis.formatter.use_scientific = False
         p.xaxis.major_label_orientation = 3.14 / 6
-        if i == ncols - 1:
-            legend = Legend(
-                items=[("+", p.renderers[0:1]), ("-", p.renderers[1:])])
-            p.add_layout(legend, 'right')
 
-        plots.append(p)
+        plots.append([chrom, df.start.values[0], p])
 
-    grid = gridplot(plots, ncols=5, width=250, height=200)
+    sorted_plots = [p[2] for p in natsorted(plots, key=lambda x: x[0])]
+
+    legend_plot = sorted_plots[ncols - 1]
+    legend = Legend(
+        items=[("+", legend_plot.renderers[0:1]), ("-", legend_plot.renderers[1:])])
+    legend_plot.add_layout(legend, 'right')
+
+    grid = gridplot(sorted_plots, ncols=5, width=250, height=200)
 
     section.plot(grid)
 
@@ -53,7 +61,6 @@ def make_coverage_summary_table(report: WFReport, table_file: Path):
         ### Summary on and off-target reads 
         ''')
     df = pd.read_csv(table_file)
-    # df.iloc[:, 1:] = df.iloc[:, 1:].astype(int)
     df.rename(columns={df.columns[0]: ""}, inplace=True)
     section.table(df, searchable=False, paging=False)
 
@@ -63,7 +70,7 @@ def make_target_summary_table(report: WFReport, table_file: Path):
     section.markdown('''
         ### Summary of each target
         ''')
-    df = pd.read_csv(table_file)
+    df = pd.read_csv(table_file, index_col=0)
     df.rename(columns={df.columns[0]: ""}, inplace=True)
     section.table(df, searchable=False, paging=False)
 
@@ -112,7 +119,7 @@ def main():
             ))
 
     make_coverage_summary_table(report, args.coverage_summary)
-    make_target_summary_table(report, args.target_sumamry)
+    make_target_summary_table(report, args.target_summary)
     plot_target_coverage(report, args.target_coverage)
 
     report.add_section(

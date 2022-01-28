@@ -11,6 +11,7 @@ import numpy as np
 import pysam
 import seaborn as sns
 import matplotlib.pyplot as pl
+from natsort import natsort_keygen
 
 
 def get_target_overlaps(df_target_tiles_, fwd_aln, rev_aln):
@@ -146,8 +147,7 @@ def main():
     # make some tiles
     tile_dfs = []
     for chrom, size in sizes.items():
-        if chrom != 'chr1':
-            continue
+
         starts = list(range(0, size, tile_size))
         df = pd.DataFrame.from_dict({'start': starts})
         df['end'] = df.start + tile_size - 1
@@ -210,13 +210,13 @@ def main():
         .sort_values(by=['chrom', 'start'])\
         .drop(columns=['chrom_y'])
     on_target_depth.reset_index(inplace=True, drop=False)
-
+    on_target_depth.sort_values(['chrom', 'start'], key=natsort_keygen(), inplace=True, ascending=True)
     on_target_depth.to_csv('target_summary.csv')
 
 if __name__ == '__main__':
-    target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-    aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
-    genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
-    stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
-    sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
+    # target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
+    # aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
+    # genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+    # stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
+    # sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
     main()

@@ -13,3 +13,4 @@ dependencies:
     - bedtools
     - pybedtools
     - samtools
+    - natsort
