@@ -72,10 +72,14 @@ def main():
     targets = BedTool(args.targets)
     df_targets = targets.to_dataframe()
     aln = BedTool(args.alignment_bed)
-    aln_hits = aln.intersect(targets, wo=True)
-    aln_df = aln.to_dataframe()
+    aln_cov = aln.coverage(targets)
+    aln_cov_df = aln_cov.to_dataframe().sort_index()
 
-    aln_off =
+    # Map target names onto aln
+    target_read_map = targets.intersect(aln, wo=True).to_dataframe()
+    target_read_map = target_read_map[['name', 'thickEnd']]
+    target_read_map.rename(columns={'name':'target', 'thickEnd': 'read_id'}, inplace=True)
+    # aln_off =
 
     # Note: may have to change this if we are looking for background genome-wide
     chr_used = np.unique(df_targets.chrom)
@@ -83,13 +87,15 @@ def main():
              k in chr_used}
 
     # How much coverage to be counted as an overlap (default is 1bp)
-    on_target_depth = targets.coverage(aln).to_dataframe().sort_index()
-    on_target_depth.rename(columns={
-        'name': 'target',
-        'score': 'num_overlaps',
-        'strand': 'target_bases_with_aln',
-        'thickStart': 'target_len',
-        'thickEnd': 'fraction_target_with_aln'
+
+    aln_cov_df.rename(columns={
+        'name': 'seq_id',
+        'blockCount': 'frac_overlap',
+        'start': 'read_start',
+        'end': 'read_end',
+        'itemRgb': 'read_len',
+        'thickStart': 'has_overlap',
+        'thickEnd': 'bases_aligning'
     }, inplace=True)
 
     # Will probably not use this table. It's all on the third tutorial table
@@ -100,19 +106,21 @@ def main():
     # aln_test = aln.intersect(targets, wb=True).to_dataframe().sort_index()
     ###
 
-    header = ['chrom', 'start', 'stop', 'seq_id', '2', 'strand', '3', 't_start', 't_end',
-              'target', 'overlap_bases', '6', '7', 'read_len', 'frac_overlap']
-    on_off = aln.coverage(targets).to_dataframe(names=header).sort_index()
-    on_off = on_off.merge(stats[['mean_quality']], left_on='seq_id', right_on='read_id')
-    on_off.drop(columns=[x for x in header if x.isnumeric()], inplace=True)
-    on_off.rename(columns={
-        'blockCount': 'frac_overlap',
-        'thickEnd': 'target_overlap',
-        'itemRgb': 'read_len'},
-        inplace=True)
+    # header = ['chrom', 'start', 'stop', 'seq_id', '2', 'strand', '3', 't_start', 't_end',
+    #           'target', 'overlap_bases', '6', '7', 'read_len', 'frac_overlap']
+    aln_cov_df = aln_cov_df.merge(stats[['mean_quality']], left_on='seq_id', right_on='read_id')
 
-    on = on_off[on_off['frac_overlap'] > 0]
-    off = on_off[on_off['frac_overlap'] == 0]
+    # on_off.drop(columns=[x for x in header if x.isnumeric()], inplace=True)
+    # on_off.rename(columns={
+    #     'blockCount': 'frac_overlap',
+    #     'thickEnd': 'target_overlap',
+    #     'itemRgb': 'read_len'},
+    #     inplace=True)
+
+    on = aln_cov_df[aln_cov_df['frac_overlap'] > 0]
+    on = on.merge(target_read_map, left_on='seq_id', right_on='read_id', how='left')
+    # target_read_overlaps = targets.coverage(BedTool(on))
+    off = aln_cov_df[aln_cov_df['frac_overlap'] == 0]
 
     # Move this up?
     # Map target names back the coverage df
@@ -124,9 +132,9 @@ def main():
     df_on_off = pd.DataFrame(
         [[len(on), on.read_len.sum() / 1000, on.read_len.mean()],
          [len(off), off.read_len.sum() / 1000, off.read_len.mean()],
-         [len(on_off), on_off.read_len.sum() / 1000, on_off.read_len.mean()]],
-        index=['Reads', 'KBs', 'Mean_read_length'],
-        columns=[['On-target', 'Non-target', 'All']]).T
+         [len(aln_cov_df), aln_cov_df.read_len.sum() / 1000, aln_cov_df.read_len.mean()]],
+        columns=['Reads', 'KBs', 'Mean_read_length'],
+        index=[['On-target', 'Non-target', 'All']])
 
     df_on_off.to_csv(
         '{}_coverage_summary.csv'.format(args.sample_id))
@@ -138,6 +146,8 @@ def main():
     # make some tiles
     tile_dfs = []
     for chrom, size in sizes.items():
+        if chrom != 'chr1':
+            continue
         starts = list(range(0, size, tile_size))
         df = pd.DataFrame.from_dict({'start': starts})
         df['end'] = df.start + tile_size - 1
@@ -151,8 +161,8 @@ def main():
         'name')
 
     # I'm assuming I can do this in pybedtools. But just use pandas for now
-    fwd_aln = BedTool().from_dataframe(aln_df[aln_df.strand == '+'])
-    rev_aln = BedTool().from_dataframe(aln_df[aln_df.strand == '-'])
+    fwd_aln = BedTool().from_dataframe(aln_cov_df[aln_cov_df.strand == '+'])
+    rev_aln = BedTool().from_dataframe(aln_cov_df[aln_cov_df.strand == '-'])
 
 
     # in production version we may want to do each target in seperate process
@@ -168,20 +178,28 @@ def main():
     result_df.rename(columns={'name': 'target'}, inplace=True)
     result_df.to_csv(
         "{}_target_coverage.csv".format(args.sample_id))
-
+    on_target_depth = targets.coverage(aln).to_dataframe().sort_index()
+    on_target_depth = on_target_depth.rename(columns={
+        'name': 'target',
+        'thickStart': 'tSize',
+        'strand':  'basesCovererd',
+        'thickEnd': 'fracTAln'}).set_index('target', drop=True)
+    on_target_depth.drop(columns=['score'], inplace=True)
     # target summaries table
-    f = on_off[on_off['strand'] == '+'].groupby(
+    f = on[on['strand'] == '+'].groupby(
         ['target']).count()['chrom']
-    r = on_off[on_off['strand'] == '_'].groupby(
+    r = on[on['strand'] == '-'].groupby(
         ['target']).count()['chrom']
     bias = (f - r) / (f + r)
     bias.columns = ['strand_bias']
-    mean_read_len = on_off.groupby(['target']).mean()[['read_len']]
-    result_df['median_coverage'] = result_df.overlaps_f + result_df.overlaps_r
-    median_coverage = result_df.groupby(['target']).median()[['median_coverage']]
-    result_df['kbases'] = result_df.overlaps_f + result_df.overlaps_r
-    kbases = result_df.groupby(['target']).sum()[['kbases']]
-    mean_quality = on_off.groupby(['target']).mean()[['mean_quality']]
+    mean_read_len = on.groupby(['target']).mean()[['read_len']]
+    result_df['all_overlaps'] = result_df.overlaps_f + result_df.overlaps_r
+    median_coverage = result_df.groupby(['target']).median()[['all_overlaps']]
+    median_coverage.columns = ['median_coverage']
+    # on_target_depth['kbases'] = on.bes + result_df.overlaps_r
+    kbases = on.groupby(['target']).sum()[['bases_aligning']] / 1000
+    kbases.columns = ['kbases']
+    mean_quality = on.groupby(['target']).mean()[['mean_quality']]
 
     frames = [on_target_depth, kbases,  median_coverage, mean_quality,
               mean_read_len, bias]
@@ -191,19 +209,14 @@ def main():
         columns={'read_len': 'mean_read_len', 'chrom_x': 'chrom'})\
         .sort_values(by=['chrom', 'start'])\
         .drop(columns=['chrom_y'])
+    on_target_depth.reset_index(inplace=True, drop=False)
 
     on_target_depth.to_csv('target_summary.csv')
 
-
-
-    # print(p)
-
-
-
 if __name__ == '__main__':
-    # target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-    # aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
-    # genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
-    # stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
-    # sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
+    target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
+    aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
+    genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+    stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
+    sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
     main()
