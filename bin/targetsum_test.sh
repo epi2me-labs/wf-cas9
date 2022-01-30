@@ -17,7 +17,7 @@ bedtools coverage -a $targets -b $aln | bedtools sort > $OUTDIR/target_summary_t
 # strand bias - I think we can get this from target_summary process?
 
 # Make tiles bed - TODO: compress as it can get big
-#bedtools makewindows -g $chr_sizes -w 100 -i 'srcwinnum' > $OUTDIR/windows.bed
+bedtools makewindows -g $chr_sizes -w 100 -i 'srcwinnum' > $OUTDIR/windows.bed
 
 # Bed file for mapping tile to target
 bedtools intersect -a $OUTDIR/windows.bed -b $targets -wb > $OUTDIR/tiles_int_targets.bed
@@ -29,10 +29,6 @@ bedtools groupby -i $OUTDIR/target_cov.bed -g 1 -c 9 -o median | cut -f 2  > $OU
 # Map targets to aln
 alntargets=$OUTDIR/aln_tagets.bed
 cat $aln | bedtools intersect -a - -b $targets -wb > $alntargets
-
-#cat $alntargets | bedtools coverage -a - -b $targets -wb > $OUTDIR/test.bed
-#
-#cat $alntargets | bedtools coverage -a - -b $targets -wb |bedtools > test.bed
 
 # Strand bias
 cat $alntargets | grep '\W+\W' | bedtools coverage -a - -b $targets -wb | \
@@ -53,8 +49,5 @@ paste $OUTDIR/target_summary_temp.bed \
       $OUTDIR/median_coverage.bed \
       $OUTDIR/pos.bed \
       $OUTDIR/neg.bed > $OUTDIR/target_summary.bed
-
-
-# Strand bias
 
 
