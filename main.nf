@@ -77,7 +77,6 @@ process build_index{
     """
         minimap2 -t $params.threads -x map-ont -d genome_index.mmi $reference
         samtools faidx $reference
-        echo "chrom size" > chrom.sizes
         cut -f 1,2 ${reference}.fai >> chrom.sizes
     """
 }
