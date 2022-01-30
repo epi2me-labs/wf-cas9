@@ -119,41 +119,41 @@ process target_coverage {
     label "cas9"
     input:
         path targets
-        path genome
         path chrom_sizes
         tuple val(sample_id),
-              path(aln),
-              path(seq_stats)
+              path(aln)
     output:
         tuple val(sample_id), path('${sample_id}_positive_target_cov.bed'), emit: pos_target_coverage
         tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
     script:
     """
     # Make tiles bed
-    bedtools makewindows -g $chrom_sizes -w 100 -i 'winnum' > windows.bed
+    bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' > windows.bed
 
     # Bed file for mapping tile to target
     bedtools intersect -a windows.bed -b $targets -wb > tiles_int_targets.bed
 
     # Get alignment coverage at tiles per strand
-    #header="chr_sizes start end target coverage #_bases_covered tile_size fracTileCovered\n"
-    #printf $header > $OUTDIR/positive_target_cov.bed
-    cat $aln | grep "\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 1,2,3,8,9,10,11,12 >> ${sample_id}_positive_target_cov.bed
+    cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cut -f 1,2,3,4,8,9 > ${sample_id}_positive_target_cov.bed
 
-    cat $aln | grep "\-\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 1,2,3,8,9,10,11,12 >> ${sample_id}_negative_target_cov.bed
+    cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cut -f 1,2,3,4,8,9 > ${sample_id}_negative_target_cov.bed
 
-
-
-
-    target_overlaps.py \
-    $targets_bed \
-    $alignment_bed \
-    $genome \
-    $sample_id \
-    $seq_stats
     """
+}
+
+process target_summary_table {
+    label "cas9"
+    input:
+        path targets
+        path chrom_sizes
+        tuple val(sample_id),
+              path(aln)
+    output:
+        tuple val(sample_id), path('${sample_id}_positive_target_cov.bed'), emit: pos_target_coverage
+        tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
+    script:
 }
 
 process makeReport {
@@ -163,9 +163,8 @@ process makeReport {
         path "params.json"
         tuple val(sample_ids),
               path(seq_summaries),
-              path(coverage_summary),
-              path(target_coverage),
-              path(target_summary)
+              path(positive_target_cov),
+              path(negative_target_cov)
     output:
         path "wf-cas9-*.html", emit: report
     script:
@@ -175,10 +174,11 @@ process makeReport {
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \
-        --coverage_summary $coverage_summary \
-        --target_coverage $target_coverage \
+        #--coverage_summary $coverage_summary \
+        --pos_target_coverage $pos_target_coverage \
+        --neg_target_cov $neg_target_coverage \
         --sample_ids $sample_ids \
-        --target_summary $target_summary
+        #--target_summary $target_summary
     """
 }
 
@@ -232,20 +232,20 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads
         )
-        overlaps(targets,
-                ref_genome,
-                build_index.chrom_sizes,
+        target_coverage(targets,
+                build_index.out.chrom_sizes,
                 align_reads.out.bed
-                .join(summariseReads.out.stats)
         )
 
         report = makeReport(software_versions.collect(),
                         workflow_params,
                         summariseReads.out.stats
-                        .join(overlaps.out.coverage_summary)
-                        .join(overlaps.out.target_coverage)
-                        .join(overlaps.out.target_summary)
-                        )
+                        .join(target_coverage.out.pos_target_coverage)
+                        .join(target_coverage.out.neg_target_coverage)
+                  )
+//                         .join(overlaps.out.target_coverage)
+//                         .join(overlaps.out.target_summary)
+//                         )
     emit:
         results = summariseReads.out.stats
         report

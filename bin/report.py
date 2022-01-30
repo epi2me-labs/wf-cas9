@@ -15,18 +15,25 @@ import pandas as pd
 
 
 
-def plot_target_coverage(report: WFReport, target_coverage: Path):
+def plot_target_coverage(report: WFReport,
+                         pos_target_coverage: Path,
+                         neg_target_coverage, Path):
     section = report.add_section()
     section.markdown('''
     ### Target coverage 
     ''')
 
-    dfg = pd.read_csv(target_coverage, index_col=0).groupby('target')
+    header = ["chr", "start", "end", 'name' "target", "coverage"]
+    df_p = pd.read_csv(pos_target_coverage, header=header, index_col='name')
+    df_n = pd.read_csv(pos_target_coverage, header=header, index_col='name')
+    df = df_p.merge(df_n[['coverage']], left_index=True, right_index=True)
+
+    dfg = df.groupby('target')
 
     ncols = 5
     plots = []
     for i, (target, df) in enumerate(dfg):
-        chrom = df.loc[df.index[0], 'chrom']
+        chrom = df.loc[df.index[0], 'chr']
         ymax = max(df.overlaps_f.max(), df.overlaps_r.max())
         ylim = [0, ymax * 1.05]  # a bit of space at top of plot
         p = lines.line(
@@ -95,15 +102,18 @@ def main():
     parser.add_argument(
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
+    # parser.add_argument(
+    #     "--coverage_summary", required=True, type=Path,
+    #     help="Contigency table coverage summary csv")
     parser.add_argument(
-        "--coverage_summary", required=True, type=Path,
-        help="Contigency table coverage summary csv")
-    parser.add_argument(
-        "--target_coverage", required=True, type=Path,
+        "--pos_target_coverage", required=True, type=Path,
         help="Tiled coverage for each target")
     parser.add_argument(
-        "--target_summary", required=True, type=Path,
-        help="Summary stats for each target. CSV.")
+        "--neg_target_coverage", required=True, type=Path,
+        help="Tiled coverage for each target")
+    # parser.add_argument(
+    #     "--target_summary", required=True, type=Path,
+    #     help="Summary stats for each target. CSV.")
     args = parser.parse_args()
 
     report = WFReport(
@@ -118,9 +128,11 @@ def main():
                 header='#### Read stats: {}'.format(id_)
             ))
 
-    make_coverage_summary_table(report, args.coverage_summary)
-    make_target_summary_table(report, args.target_summary)
-    plot_target_coverage(report, args.target_coverage)
+    # make_coverage_summary_table(report, args.coverage_summary)
+    # make_target_summary_table(report, args.pos_target_summary)
+    plot_target_coverage(report,
+                         args.pos_target_coverage,
+                         args.neg_target_coverage)
 
     report.add_section(
         section=scomponents.version_table(args.versions))
