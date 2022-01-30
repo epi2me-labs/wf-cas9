@@ -113,6 +113,8 @@ process target_coverage {
         coverage summary: csv for table with stats for all targets aggregated
         target_summary: csv with summary info for each plot
 
+    # NOTE
+    use \W\+\W as strand may move columns in future versions
 
      */
     label "cas9"

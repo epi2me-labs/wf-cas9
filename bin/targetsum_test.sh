@@ -7,7 +7,7 @@ stats="/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
 chr_sizes="/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/chrom.sizes"
 
 # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
-bedtools coverage -a $targets -b $aln > $OUTDIR/target_summary_temp.bed
+bedtools coverage -a $targets -b $aln | bedtools sort > $OUTDIR/target_summary_temp.bed
 
 # Need to add following columns
 # - kbases - kbases of coverage - DONE
@@ -30,21 +30,29 @@ bedtools groupby -i $OUTDIR/target_cov.bed -g 1 -c 9 -o median | cut -f 2  > $OU
 alntargets=$OUTDIR/aln_tagets.bed
 cat $aln | bedtools intersect -a - -b $targets -wb > $alntargets
 
-cat $alntargets | bedtools coverage -a - -b $targets -wb > $OUTDIR/test.bed
+#cat $alntargets | bedtools coverage -a - -b $targets -wb > $OUTDIR/test.bed
+#
+#cat $alntargets | bedtools coverage -a - -b $targets -wb |bedtools > test.bed
 
-cat $alntargets | bedtools coverage -a - -b $targets -wb > test.bed
+# Strand bias
+cat $alntargets | grep '\W+\W' | bedtools coverage -a - -b $targets -wb | \
+bedtools sort | bedtools groupby -g 10 -c 1 -o count    > $OUTDIR/pos.bed
+
+cat $alntargets | grep '\W-\W' | bedtools coverage -a - -b $targets -wb \
+| bedtools groupby -g 10 -c 1 -o count | cut -f 2 > $OUTDIR/neg.bed
 
 # Mean read len
-cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f 2 > $OUTDIR/mean_read_len.bed
+cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean >  $OUTDIR/mean_read_len.bed
 
 # Kbases of coverage
-cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 1, -c 12 -o sum | cut -f 2 > $OUTDIR/kbases.bed
-
+cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > $OUTDIR/kbases.bed
 
 paste $OUTDIR/target_summary_temp.bed \
       $OUTDIR/mean_read_len.bed \
       $OUTDIR/kbases.bed \
-      $OUTDIR/median_coverage.bed > $OUTDIR/target_summary.bed
+      $OUTDIR/median_coverage.bed \
+      $OUTDIR/pos.bed \
+      $OUTDIR/neg.bed > $OUTDIR/target_summary.bed
 
 
 # Strand bias
