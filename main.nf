@@ -72,9 +72,13 @@ process build_index{
         file reference
     output:
         path "genome_index.mmi", emit: index
+        path("chrom.sizes"), emit: chrom_sizes
     script:
     """
         minimap2 -t $params.threads -x map-ont -d genome_index.mmi $reference
+        samtools faidx $reference
+        echo "chrom size" > chrom.sizes
+        cut -f 1,2 ${reference}.fai >> chrom.sizes
     """
 }
 
@@ -103,7 +107,7 @@ process align_reads {
     """
 }
 
-process overlaps {
+process target_coverage {
     /* Call the python processing script and get back CSVs that will be used in the report
     emits
         target_coverage: tiled csv for creating plots
@@ -114,17 +118,35 @@ process overlaps {
      */
     label "cas9"
     input:
-        path targets_bed
+        path targets
         path genome
+        path chrom_sizes
         tuple val(sample_id),
-              path(alignment_bed),
+              path(aln),
               path(seq_stats)
     output:
-        tuple val(sample_id), path('*coverage_summary.csv'), emit: coverage_summary
-        tuple val(sample_id), path('*target_coverage.csv'), emit: target_coverage
-        tuple val(sample_id), path('*target_summary.csv'), emit: target_summary
+        tuple val(sample_id), path('${sample_id}_positive_target_cov.bed'), emit: pos_target_coverage
+        tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
     script:
     """
+    # Make tiles bed
+    bedtools makewindows -g $chrom_sizes -w 100 -i 'winnum' > windows.bed
+
+    # Bed file for mapping tile to target
+    bedtools intersect -a windows.bed -b $targets -wb > tiles_int_targets.bed
+
+    # Get alignment coverage at tiles per strand
+    #header="chr_sizes start end target coverage #_bases_covered tile_size fracTileCovered\n"
+    #printf $header > $OUTDIR/positive_target_cov.bed
+    cat $aln | grep "\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cut -f 1,2,3,8,9,10,11,12 >> ${sample_id}_positive_target_cov.bed
+
+    cat $aln | grep "\-\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cut -f 1,2,3,8,9,10,11,12 >> ${sample_id}_negative_target_cov.bed
+
+
+
+
     target_overlaps.py \
     $targets_bed \
     $alignment_bed \
@@ -212,6 +234,7 @@ workflow pipeline {
         )
         overlaps(targets,
                 ref_genome,
+                build_index.chrom_sizes,
                 align_reads.out.bed
                 .join(summariseReads.out.stats)
         )

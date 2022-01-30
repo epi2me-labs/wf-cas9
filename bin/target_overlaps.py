@@ -52,6 +52,11 @@ def get_target_overlaps(df_target_tiles_, fwd_aln, rev_aln):
     return result
 
 
+def background_coverage():
+    """Plot of coverage by tile with mean on-target coverage vline for
+    comparison."""
+
+
 def main():
     """Run the entry point."""
     parser = argparse.ArgumentParser()
@@ -60,6 +65,8 @@ def main():
     parser.add_argument("ref_genome", help='Reference genome fasta')
     parser.add_argument("sample_id", help="alignment")
     parser.add_argument("seq_stats", help="Sequence summary stats")
+    parser.add_argument("--chrom_sizes", help="chromosome sizes csv")
+    parser.add_argument("--proximal_pad", type=int, default=1000)
 
     args = parser.parse_args()
 
@@ -69,12 +76,18 @@ def main():
     # bam to bed: bedtools bamtobed -i fastq_pass.bam | bedtools sort > fastq_pass.bed
     # sorted_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
 
+
+
+
+
     # Get
     targets = BedTool(args.targets)
     df_targets = targets.to_dataframe()
     aln = BedTool(args.alignment_bed)
     aln_cov = aln.coverage(targets)
     aln_cov_df = aln_cov.to_dataframe().sort_index()
+
+
 
     # Map target names onto aln
     target_read_map = targets.intersect(aln, wo=True).to_dataframe()
@@ -84,8 +97,10 @@ def main():
 
     # Note: may have to change this if we are looking for background genome-wide
     chr_used = np.unique(df_targets.chrom)
-    sizes = {k: v for (k, v) in zip(ref.references, ref.lengths) if
-             k in chr_used}
+    df_chrom_sizes = pd.read_csv(args.chrom_sizes, sep='\t', index_col=0)
+    df_chrom_sizes = df_chrom_sizes[df_chrom_sizes.index.isin(chr_used)]
+    # sizes = {k: v for (k, v) in zip(ref.references, ref.lengths) if
+    #          k in chr_used}
 
     # How much coverage to be counted as an overlap (default is 1bp)
 
@@ -146,9 +161,9 @@ def main():
 
     # make some tiles
     tile_dfs = []
-    for chrom, size in sizes.items():
+    for chrom, row in df_chrom_sizes.iterrows():
 
-        starts = list(range(0, size, tile_size))
+        starts = list(range(0, row.loc['size'], tile_size))
         df = pd.DataFrame.from_dict({'start': starts})
         df['end'] = df.start + tile_size - 1
         df['chrom'] = chrom
@@ -160,7 +175,30 @@ def main():
     df_all_target_tiles = targets.intersect(tiles_bed).to_dataframe().groupby(
         'name')
 
-    # I'm assuming I can do this in pybedtools. But just use pandas for now
+
+    #### Testing
+    slop_targets = targets.slop(b=args.proximal_pad, g=args.chrom_sizes).to_dataframe()
+    # df_all_target_tiles_slop = slop_targets.intersect(tiles_bed).to_dataframe()
+    slop_targets.to_csv('/Users/Neil.Horner/work/testing/cas9/bg/slop_targets')
+
+    # slop_target_read_map = slop_targets.intersect(aln, wo=True).to_dataframe()
+    # # slop_target_read_map = slop_target_read_map[['name', 'thickEnd']]
+    # # target_read_map.rename(columns={'name': 'target', 'thickEnd': 'read_id'},
+    # #                        inplace=True)
+    #
+    # # For each Slopped tile we have reads ids in 'thickEnd'
+    # slop_target_read_map.to_csv('/Users/Neil.Horner/work/testing/cas9/bg/tile_reads_slop.csv')
+
+    # Need a DF with coverage at each tile
+    aln_cov = tiles_bed.coverage(aln, hist=True)
+    aln_cov.columns = ['chrom', 'start', 'end', 'depth', '# bases at depth', 'size of A', '% A at depth']
+    aln_cov.to_csv('/Users/Neil.Horner/work/testing/cas9/bg/tile_cov.csv')
+
+    t = aln_cov_df.intersect(v=True)
+
+    ### testing
+
+    # Probably can do this in bedtools. BUsing pandas for now
     fwd_aln = BedTool().from_dataframe(aln_cov_df[aln_cov_df.strand == '+'])
     rev_aln = BedTool().from_dataframe(aln_cov_df[aln_cov_df.strand == '-'])
 
@@ -214,9 +252,12 @@ def main():
     on_target_depth.to_csv('target_summary.csv')
 
 if __name__ == '__main__':
-    # target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
-    # aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
-    # genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
-    # stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
-    # sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file])
+    target_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/targets.bed"
+    aln_bed = "/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.bed"
+    genome_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/grch38.fasta.gz"
+    stats_file = "/Users/Neil.Horner/work/workflow_outputs/cas9/seqstats.csv"
+    chrome_sizes = "/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/chrom.sizes"
+    sys.argv.extend([target_file, aln_bed, genome_file, 'test', stats_file,
+                     '--chrom_sizes', '/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/chrom.sizes'])
     main()
+
