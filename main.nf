@@ -136,8 +136,8 @@ process target_coverage {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('${sample_id}_positive_target_cov.bed'), emit: pos_target_coverage
-        tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
+        tuple val(sample_id), path('*_target_cov.bed'), emit: target_coverage
+
     script:
     """
     # Bed file for mapping tile to target
@@ -145,11 +145,15 @@ process target_coverage {
 
     # Get alignment coverage at tiles per strand
     cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 1,2,3,4,8,9 > ${sample_id}_positive_target_cov.bed
+    cut -f 1,2,3,4,8,9 > pos.bed
 
-    cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 1,2,3,4,8,9 > ${sample_id}_negative_target_cov.bed
+    cat $aln | grep "\\-\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cut -f 4,9 > neg.bed
 
+    # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
+    paste pos.bed neg.bed > ${sample_id}_target_cov.bed
+
+    rm pos.bed neg.bed
     """
 }
 
@@ -162,20 +166,11 @@ process target_summary {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('${sample_id}_target_summary.bed'), emit: table
+        tuple val(sample_id), path('*_target_summary.bed'), emit: table
     script:
     """
-    # See targetsum_test.sh
-    # This needs nextlowing
     # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
     bedtools coverage -a $targets -b $aln | bedtools sort > target_summary_temp.bed
-
-    # Need to add following columns
-    # - kbases - kbases of coverage - DONE
-    # - median coverage   DONE
-    # mean_read_len DONE
-    # mean_accuracy - use aln_tagets.bed and seq stats from fastcat in python
-    # strand bias - I think we can get this from target_summary process?
 
     # Bed file for mapping tile to target
     bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
@@ -185,21 +180,20 @@ process target_summary {
     bedtools groupby -i target_cov.bed -g 1 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Map targets to aln
-    alntargets=aln_tagets.bed
-    cat $aln | bedtools intersect -a - -b $targets -wb > $alntargets
+    cat $aln | bedtools intersect -a - -b $targets -wb > aln_tagets.bed
 
     # Strand bias
-    cat $alntargets | grep '\W+\W' | bedtools coverage -a - -b $targets -wb | \
-    bedtools sort | bedtools groupby -g 10 -c 1 -o count  > pos.bed
+    cat aln_tagets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
+    bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
 
-    cat $alntargets | grep '\W-\W' | bedtools coverage -a - -b $targets -wb \
-    | bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
+    cat aln_tagets.bed | grep '\\W-\\W' | bedtools coverage -a - -b $targets -wb | \
+     bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
 
     # Mean read len
-    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean >  mean_read_len.bed
+    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
 
     # Kbases of coverage
-    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > kbases.bed
+    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > kbases.bed
 
     paste target_summary_temp.bed \
       mean_read_len.bed \
@@ -208,7 +202,7 @@ process target_summary {
       pos.bed \
       neg.bed > ${sample_id}_target_summary.bed
 
-      # TODO: rm these intermediate paste files
+    rm mean_read_len.bed kbases.bed median_coverage.bed pos.bed neg.bed
     """
 }
 
@@ -222,10 +216,10 @@ process background {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('${sample_id}_tiles_background_cov.bed'), emit: table
+        tuple val(sample_id), path('*_tiles_background_cov.bed'), emit: table
     script:
     """
-    bedtools slop -i $targets -g $chr_sizes -b 1000 | \
+    bedtools slop -i $targets -g $chrom_sizes -b 1000 | \
     # remove reads that overlap slopped targets
     bedtools intersect -v -a $aln -b - -wa | \
     bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
@@ -239,8 +233,9 @@ process makeReport {
         path "params.json"
         tuple val(sample_ids),
               path(seq_summaries),
-              path(positive_target_cov),
-              path(negative_target_cov)
+              path(target_coverage),
+              path(target_summary_table),
+              path(background)
     output:
         path "wf-cas9-*.html", emit: report
     script:
@@ -250,11 +245,9 @@ process makeReport {
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \
-        #--coverage_summary $coverage_summary \
-        --pos_target_coverage $pos_target_coverage \
-        --neg_target_cov $neg_target_coverage \
+        --target_coverage $target_coverage \
+        --target_summary $target_summary_table \
         --sample_ids $sample_ids \
-        #--target_summary $target_summary
     """
 }
 
@@ -308,30 +301,29 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads)
 
-        make_tiles(chrom_sizes)
+        make_tiles(build_index.out.chrom_sizes)
 
         target_coverage(targets,
-                make_tiles.tiles,
+                make_tiles.out.tiles,
                 build_index.out.chrom_sizes,
                 align_reads.out.bed)
 
         target_summary(targets,
-                        make_tiles.tiles,
+                       make_tiles.out.tiles,
                        build_index.out.chrom_sizes,
                        align_reads.out.bed)
 
         background(targets,
-                    make_tiles.tiles,
+                    make_tiles.out.tiles,
                     build_index.out.chrom_sizes,
                     align_reads.out.bed)
 
         report = makeReport(software_versions.collect(),
                         workflow_params,
                         summariseReads.out.stats
-                        .join(target_coverage.out.pos_target_coverage)
-                        .join(target_coverage.out.neg_target_coverage)
-                        .join(target_summary.table)
-                        .join(background.table)
+                        .join(target_coverage.out.target_coverage)
+                        .join(target_summary.out.table)
+//                         .join(background.out.table)
                   )
 //                         .join(overlaps.out.target_coverage)
 //                         .join(overlaps.out.target_summary)
