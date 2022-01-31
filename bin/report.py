@@ -113,6 +113,11 @@ def plot_background(report: WFReport, background: Path,
                           colors=['#1A85FF', '#D41159'], normalize=True,
                           weights=weights, names=['Background', 'target'])
 
+    legend = Legend(
+        items=[("Background", plot.renderers[0:1]),
+               ("target", plot.renderers[1:])])
+    plot.add_layout(legend, 'right')
+
     section.plot(plot)
 
 
