@@ -61,6 +61,17 @@ process getParams {
     """
 }
 
+process make_tiles {
+    input:
+        path chrom_sizes
+    output:
+        path 'tiles.bed', emit: tiles
+    script:
+    """
+    bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' | gzip > tiles.bed
+    """
+}
+
 process build_index{
     /*
     Build minimap index from reference genome
@@ -120,6 +131,7 @@ process target_coverage {
     label "cas9"
     input:
         path targets
+        path tiles
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
@@ -128,11 +140,8 @@ process target_coverage {
         tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
     script:
     """
-    # Make tiles bed
-    bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' > windows.bed
-
     # Bed file for mapping tile to target
-    bedtools intersect -a windows.bed -b $targets -wb > tiles_int_targets.bed
+    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
 
     # Get alignment coverage at tiles per strand
     cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
@@ -144,16 +153,16 @@ process target_coverage {
     """
 }
 
-process target_summary_table {
+process target_summary {
     label "cas9"
     input:
         path targets
+        path tiles
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('${sample_id}_positive_target_cov.bed'), emit: pos_target_coverage
-        tuple val(sample_id), path('${sample_id}_negative_target_cov.bed'), emit: neg_target_coverage
+        tuple val(sample_id), path('${sample_id}_target_summary.bed'), emit: table
     script:
     """
     # See targetsum_test.sh
@@ -168,39 +177,58 @@ process target_summary_table {
     # mean_accuracy - use aln_tagets.bed and seq stats from fastcat in python
     # strand bias - I think we can get this from target_summary process?
 
-    # Make tiles bed - TODO: compress as it can get big
-    bedtools makewindows -g $chr_sizes -w 100 -i 'srcwinnum' > windows.bed
-
     # Bed file for mapping tile to target
-    bedtools intersect -a windows.bed -b $targets -wb > tiles_int_targets.bed
+    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
 
     # Get alignment coverage at tiles per strand
     cat $aln | bedtools coverage -a tiles_int_targets.bed -b - > target_cov.bed
-    bedtools groupby -i $OUTDIR/target_cov.bed -g 1 -c 9 -o median | cut -f 2  > $OUTDIR/median_coverage.bed
+    bedtools groupby -i target_cov.bed -g 1 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Map targets to aln
-    alntargets=$OUTDIR/aln_tagets.bed
+    alntargets=aln_tagets.bed
     cat $aln | bedtools intersect -a - -b $targets -wb > $alntargets
 
     # Strand bias
     cat $alntargets | grep '\W+\W' | bedtools coverage -a - -b $targets -wb | \
-    bedtools sort | bedtools groupby -g 10 -c 1 -o count    > $OUTDIR/pos.bed
+    bedtools sort | bedtools groupby -g 10 -c 1 -o count  > pos.bed
 
     cat $alntargets | grep '\W-\W' | bedtools coverage -a - -b $targets -wb \
-    | bedtools groupby -g 10 -c 1 -o count | cut -f 2 > $OUTDIR/neg.bed
+    | bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
 
     # Mean read len
-    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean >  $OUTDIR/mean_read_len.bed
+    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean >  mean_read_len.bed
 
     # Kbases of coverage
-    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > $OUTDIR/kbases.bed
+    cat $alntargets | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > kbases.bed
 
-    paste $OUTDIR/target_summary_temp.bed \
-      $OUTDIR/mean_read_len.bed \
-      $OUTDIR/kbases.bed \
-      $OUTDIR/median_coverage.bed \
-      $OUTDIR/pos.bed \
-      $OUTDIR/neg.bed > $OUTDIR/target_summary.bed
+    paste target_summary_temp.bed \
+      mean_read_len.bed \
+      kbases.bed \
+      median_coverage.bed \
+      pos.bed \
+      neg.bed > ${sample_id}_target_summary.bed
+
+      # TODO: rm these intermediate paste files
+    """
+}
+
+
+process background {
+    label "cas9"
+    input:
+        path targets
+        path tiles
+        path chrom_sizes
+        tuple val(sample_id),
+              path(aln)
+    output:
+        tuple val(sample_id), path('${sample_id}_tiles_background_cov.bed'), emit: table
+    script:
+    """
+    bedtools slop -i $targets -g $chr_sizes -b 1000 | \
+    # remove reads that overlap slopped targets
+    bedtools intersect -v -a $aln -b - -wa | \
+    bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
     """
 }
 
@@ -278,18 +306,32 @@ workflow pipeline {
         align_reads(
             build_index.out.index,
             ref_genome,
-            summariseReads.out.reads
-        )
+            summariseReads.out.reads)
+
+        make_tiles(chrom_sizes)
+
         target_coverage(targets,
+                make_tiles.tiles,
                 build_index.out.chrom_sizes,
-                align_reads.out.bed
-        )
+                align_reads.out.bed)
+
+        target_summary(targets,
+                        make_tiles.tiles,
+                       build_index.out.chrom_sizes,
+                       align_reads.out.bed)
+
+        background(targets,
+                    make_tiles.tiles,
+                    build_index.out.chrom_sizes,
+                    align_reads.out.bed)
 
         report = makeReport(software_versions.collect(),
                         workflow_params,
                         summariseReads.out.stats
                         .join(target_coverage.out.pos_target_coverage)
                         .join(target_coverage.out.neg_target_coverage)
+                        .join(target_summary.table)
+                        .join(background.table)
                   )
 //                         .join(overlaps.out.target_coverage)
 //                         .join(overlaps.out.target_summary)
