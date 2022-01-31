@@ -248,6 +248,7 @@ process makeReport {
         --target_coverage $target_coverage \
         --target_summary $target_summary_table \
         --sample_ids $sample_ids \
+        --background $background
     """
 }
 
@@ -323,6 +324,7 @@ workflow pipeline {
                         summariseReads.out.stats
                         .join(target_coverage.out.target_coverage)
                         .join(target_summary.out.table)
+                        .join(background.out.table)
 //                         .join(background.out.table)
                   )
 //                         .join(overlaps.out.target_coverage)

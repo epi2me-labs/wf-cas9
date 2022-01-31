@@ -4,7 +4,7 @@
 from pathlib import Path
 import argparse
 
-from aplanat import bars, lines
+from aplanat import bars, hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
@@ -59,6 +59,11 @@ def plot_target_coverage(report: WFReport, target_coverage: Path):
 
     section.plot(grid)
 
+    # Extract target coverage
+    cov = pd.DataFrame(df.coverage_f + df.coverage_r)
+    cov.columns = ['coverage']
+    return cov
+
 
 def make_coverage_summary_table(report: WFReport, table_file: Path):
     section = report.add_section()
@@ -75,10 +80,10 @@ def make_target_summary_table(report: WFReport, table_file: Path):
     section.markdown('''
         ### Summary of each target
         ''')
-
     header = ['chr', 'start', 'end', 'target', '#reads', '#bases_cov',
               'targetLen', 'fracTargAln', 'meanReadLen', 'kbases',
               'medianCov', 'p', 'n']
+
     df = pd.read_csv(table_file, sep='\t', names=header)
     df['strand bias'] = (df.p - df.n) / (df.p + df.n)
     df.drop(columns=['p', 'n'], inplace=True)
@@ -88,6 +93,27 @@ def make_target_summary_table(report: WFReport, table_file: Path):
         inplace=True
     )
     section.table(df, searchable=False, paging=False)
+
+
+def plot_background(report: WFReport, background: Path,
+                    target_coverage: pd.DataFrame):
+    section = report.add_section()
+    section.markdown('''
+            ### Coverage distribution
+            ''')
+    header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
+              'tileLen', 'fracTileAln']
+
+    df = pd.read_csv(background, sep='\t', names=header)
+    target_weight = len(df) / len(target_coverage)
+    weights = [[1] * len(df),
+               [target_weight] * len(target_coverage)]
+
+    plot = hist.histogram([df['#reads'].values, target_coverage['coverage']],
+                          colors=['#1A85FF', '#D41159'], normalize=True,
+                          weights=weights, names=['Background', 'target'])
+
+    section.plot(plot)
 
 
 def main():
@@ -119,6 +145,9 @@ def main():
     parser.add_argument(
         "--target_summary", required=True, type=Path,
         help="Summary stats for each target. CSV.")
+    parser.add_argument(
+        "--background", required=True, type=Path,
+        help="Tiled background coverage")
     args = parser.parse_args()
 
     report = WFReport(
@@ -135,7 +164,8 @@ def main():
 
     # make_coverage_summary_table(report, args.coverage_summary)
     make_target_summary_table(report, args.target_summary)
-    plot_target_coverage(report, args.target_coverage)
+    target_coverage = plot_target_coverage(report, args.target_coverage)
+    plot_background(report, args.background, target_coverage)
 
     report.add_section(
         section=scomponents.version_table(args.versions))
