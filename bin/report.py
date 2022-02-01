@@ -14,7 +14,7 @@ from natsort import natsorted, natsort_keygen
 import pandas as pd
 
 
-def plot_target_coverage(report: WFReport, target_coverage: Path):
+def _plot_target_coverage(report: WFReport, target_coverage: Path):
     section = report.add_section()
     section.markdown('''
     ### Target coverage 
@@ -65,7 +65,7 @@ def plot_target_coverage(report: WFReport, target_coverage: Path):
     return cov
 
 
-def make_coverage_summary_table(report: WFReport, table_file: Path):
+def _make_coverage_summary_table(report: WFReport, table_file: Path):
     """
     NOTE: Still need to add in mean read length. This will need to be got
     from the summarise reads output
@@ -73,14 +73,16 @@ def make_coverage_summary_table(report: WFReport, table_file: Path):
     section = report.add_section()
     section.markdown('''
         ### Summary on and off-target reads 
+        Needs work. Figures do not match tutorial output
         ''')
-    df = pd.read_csv(table_file, sep='\t', names=['on', 'off'],
-                     index=['num_reads', 'num_bases'])
+    df = pd.read_csv(table_file, sep='\t', names=['on', 'off'])
+    df.index = ['num_reads', 'num_bases']
+
     df.rename(columns={df.columns[0]: ""}, inplace=True)
     section.table(df, searchable=False, paging=False)
 
 
-def make_target_summary_table(report: WFReport, table_file: Path):
+def _make_target_summary_table(report: WFReport, table_file: Path):
     section = report.add_section()
     section.markdown('''
         ### Summary of each target
@@ -100,7 +102,7 @@ def make_target_summary_table(report: WFReport, table_file: Path):
     section.table(df, searchable=False, paging=False)
 
 
-def plot_background(report: WFReport, background: Path,
+def _plot_background(report: WFReport, background: Path,
                     target_coverage: pd.DataFrame):
     section = report.add_section()
     section.markdown('''
@@ -117,13 +119,19 @@ def plot_background(report: WFReport, background: Path,
     plot = hist.histogram([df['#reads'].values, target_coverage['coverage']],
                           colors=['#1A85FF', '#D41159'], normalize=True,
                           weights=weights, names=['Background', 'target'])
-
-    legend = Legend(
-        items=[("Background", plot.renderers[0:1]),
-               ("target", plot.renderers[1:])])
-    plot.add_layout(legend, 'right')
-
     section.plot(plot)
+
+
+def _make_offtarget_hotspot_table(report: WFReport, bg: Path):
+
+    section = report.add_section()
+    section.markdown('''
+            ### Off-target hotspots
+            ''')
+
+    df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'num_reads'])
+    df.sort_values('num_reads', inplace=True)
+    section.filterable_table(df)
 
 
 def main():
@@ -158,6 +166,9 @@ def main():
     parser.add_argument(
         "--background", required=True, type=Path,
         help="Tiled background coverage")
+    parser.add_argument(
+        "--off_target_hotspots", required=True, type=Path,
+        help="Tiled background coverage")
     args = parser.parse_args()
 
     report = WFReport(
@@ -172,10 +183,11 @@ def main():
                 header='#### Read stats: {}'.format(id_)
             ))
 
-    make_coverage_summary_table(report, args.coverage_summary)
-    make_target_summary_table(report, args.target_summary)
-    target_coverage = plot_target_coverage(report, args.target_coverage)
-    plot_background(report, args.background, target_coverage)
+    _make_coverage_summary_table(report, args.coverage_summary)
+    _make_target_summary_table(report, args.target_summary)
+    _target_coverage = plot_target_coverage(report, args.target_coverage)
+    _plot_background(report, args.background, target_coverage)
+    _make_offtarget_hotspot_table(report, args.off_target_hotspots)
 
     report.add_section(
         section=scomponents.version_table(args.versions))

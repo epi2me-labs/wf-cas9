@@ -223,12 +223,8 @@ process coverage_summary {
     numread_on=\$(cat on.bed | wc -l)
     numread_off=\$(cat off.bed | wc -l)
 
-    bases_on=\$(cat on.bed | bedtools intersect -a $aln -b $targets  | \
-    bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
-
-    bases_off=\$(cat on.bed | bedtools intersect -a $aln -b $targets -v | \
-    bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
-
+    bases_on=\$(cat on.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    bases_off=\$(cat off.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
     """
@@ -244,12 +240,18 @@ process background {
               path(aln)
     output:
         tuple val(sample_id), path('*_tiles_background_cov.bed'), emit: table
+        tuple val(sample_id), path('*off_target_hotspots.bed'), emit: hotspots
     script:
     """
-    bedtools slop -i $targets -g $chrom_sizes -b 1000 | \
+    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
     # remove reads that overlap slopped targets
     bedtools intersect -v -a $aln -b - -wa | \
     bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
+
+    # Get all contiguous regions of background alignments
+    cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
+    bedtools merge -i - | bedtools coverage -a - -b $aln | \
+    cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
     """
 }
 
@@ -263,6 +265,7 @@ process makeReport {
               path(target_coverage),
               path(target_summary_table),
               path(background),
+              path(off_target_hotspots),
               path(coverage_summary)
     output:
         path "wf-cas9-*.html", emit: report
@@ -277,6 +280,7 @@ process makeReport {
         --target_summary $target_summary_table \
         --sample_ids $sample_ids \
         --background $background \
+        --off_target_hotspots $off_target_hotspots \
         --coverage_summary $coverage_summary
     """
 }
@@ -359,7 +363,9 @@ workflow pipeline {
                         .join(target_coverage.out.target_coverage)
                         .join(target_summary.out.table)
                         .join(background.out.table)
+                        .join(background.out.hotspots)
                         .join(coverage_summary.out.summary)
+
 //                         .join(background.out.table)
                   )
 //                         .join(overlaps.out.target_coverage)
