@@ -66,11 +66,16 @@ def plot_target_coverage(report: WFReport, target_coverage: Path):
 
 
 def make_coverage_summary_table(report: WFReport, table_file: Path):
+    """
+    NOTE: Still need to add in mean read length. This will need to be got
+    from the summarise reads output
+    """
     section = report.add_section()
     section.markdown('''
         ### Summary on and off-target reads 
         ''')
-    df = pd.read_csv(table_file, sep='\t')
+    df = pd.read_csv(table_file, sep='\t', names=['on', 'off'],
+                     index=['num_reads', 'num_bases'])
     df.rename(columns={df.columns[0]: ""}, inplace=True)
     section.table(df, searchable=False, paging=False)
 
@@ -141,9 +146,9 @@ def main():
     parser.add_argument(
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
-    # parser.add_argument(
-    #     "--coverage_summary", required=True, type=Path,
-    #     help="Contigency table coverage summary csv")
+    parser.add_argument(
+        "--coverage_summary", required=True, type=Path,
+        help="Contigency table coverage summary csv")
     parser.add_argument(
         "--target_coverage", required=True, type=Path,
         help="Tiled coverage for each target")
@@ -167,7 +172,7 @@ def main():
                 header='#### Read stats: {}'.format(id_)
             ))
 
-    # make_coverage_summary_table(report, args.coverage_summary)
+    make_coverage_summary_table(report, args.coverage_summary)
     make_target_summary_table(report, args.target_summary)
     target_coverage = plot_target_coverage(report, args.target_coverage)
     plot_background(report, args.background, target_coverage)

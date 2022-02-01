@@ -206,6 +206,33 @@ process target_summary {
     """
 }
 
+process coverage_summary {
+    label "cas9"
+    input:
+        path targets
+        tuple val(sample_id),
+              path(aln)
+    output:
+        tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
+    script:
+    """
+    # num_reads, num_bases, mean read_len
+    bedtools intersect -a $aln -b $targets -wa -wb -v > off.bed
+    bedtools intersect -a $aln -b $targets -wa -wb > on.bed
+
+    numread_on=\$(cat on.bed | wc -l)
+    numread_off=\$(cat off.bed | wc -l)
+
+    bases_on=\$(cat on.bed | bedtools intersect -a $aln -b $targets  | \
+    bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+
+    bases_off=\$(cat on.bed | bedtools intersect -a $aln -b $targets -v | \
+    bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+
+
+    echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
+    """
+}
 
 process background {
     label "cas9"
@@ -235,7 +262,8 @@ process makeReport {
               path(seq_summaries),
               path(target_coverage),
               path(target_summary_table),
-              path(background)
+              path(background),
+              path(coverage_summary)
     output:
         path "wf-cas9-*.html", emit: report
     script:
@@ -248,7 +276,8 @@ process makeReport {
         --target_coverage $target_coverage \
         --target_summary $target_summary_table \
         --sample_ids $sample_ids \
-        --background $background
+        --background $background \
+        --coverage_summary $coverage_summary
     """
 }
 
@@ -319,12 +348,18 @@ workflow pipeline {
                     build_index.out.chrom_sizes,
                     align_reads.out.bed)
 
+        coverage_summary(targets,
+                         align_reads.out.bed
+                        .join(summariseReads.out.stats)
+                        )
+
         report = makeReport(software_versions.collect(),
                         workflow_params,
                         summariseReads.out.stats
                         .join(target_coverage.out.target_coverage)
                         .join(target_summary.out.table)
                         .join(background.out.table)
+                        .join(coverage_summary.out.summary)
 //                         .join(background.out.table)
                   )
 //                         .join(overlaps.out.target_coverage)
