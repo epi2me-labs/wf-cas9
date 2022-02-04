@@ -15,7 +15,7 @@ from natsort import natsorted, natsort_keygen
 import pandas as pd
 
 
-def _plot_target_coverage(report: WFReport, sample_ids,
+def plot_target_coverage(report: WFReport, sample_ids,
                           target_coverages: List[Path]):
     section = report.add_section()
     section.markdown('''
@@ -148,6 +148,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         * strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or 
             reverse strand respectively.
+        * kbases: kbases of total reads mapped to target
         ''')
     header = ['chr', 'start', 'end', 'target', '#reads', '#basesCov',
               'targetLen', 'fracTargAln', 'meanReadLen', 'kbases',
@@ -155,7 +156,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
     for (id_, table_file) in zip(sample_ids, table_files):
         df = pd.read_csv(table_file, sep='\t', names=header)
-
+        df.kbases = df.kbases / 1000
         # This bodges a problem with main.nf:target_summary
         df.dropna(inplace=True)
 
@@ -327,7 +328,7 @@ def main():
 
     make_target_summary_table(report, args.sample_ids, args.target_summary)
 
-    target_coverage = _plot_target_coverage(report, args.sample_ids,
+    target_coverage = plot_target_coverage(report, args.sample_ids,
                                             args.target_coverage)
 
     plot_tiled_coverage_hist(report, args.sample_ids, args.background,

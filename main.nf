@@ -196,12 +196,12 @@ process target_summary {
     # Actually this is mean alignment length
     cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
 
-    # Kbases of coverage
-    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > kbases.bed
+    # bases of coverage
+    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > bases.bed
 
     paste target_summary_temp.bed \
       mean_read_len.bed \
-      kbases.bed \
+      bases.bed \
       median_coverage.bed \
       pos.bed \
       neg.bed > ${sample_id}_target_summary.bed
@@ -229,9 +229,9 @@ process coverage_summary {
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
     cat on.bed off.bed > ${sample_id}_on_off.bed
-
-    bases_on=\$(cat on.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
-    bases_off=\$(cat off.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    
+    bases_on=\$(cat on.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
     """
