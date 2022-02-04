@@ -190,6 +190,7 @@ process target_summary {
      bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
 
     # Mean read len
+    # Actually this is mean alignment length
     cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
 
     # Kbases of coverage

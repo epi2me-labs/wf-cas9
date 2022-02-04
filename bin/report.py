@@ -18,6 +18,9 @@ def _plot_target_coverage(report: WFReport, target_coverage: Path):
     section = report.add_section()
     section.markdown('''
     ### Target coverage 
+    
+    Each of the following plot show the amount of coverage, per strand,  
+    in discretized bins of 100 bp.
     ''')
 
     header = ["chr", "start", "end", 'name_f', "target", "coverage_f",
@@ -72,18 +75,22 @@ def make_coverage_summary_table(report: WFReport, table_file: Path,
     >=1bp overlap with target and off target the rest. Do we need to change the
     definition here to exclude proximal hits from the off-targets as is done
     later
+
+    :param seq_stats the summary from fastcat
     """
     section = report.add_section()
     section.markdown('''
-        ### Summary of on-target and off-target reads. 
-        This table summaries
+        ### Summary of on-target and off-target reads.
+        On target reads are defined here as any read that contains at least 1pb
+        overlap with a target region and off target reads have 0 overlapping
+        bases.
         ''')
     df = pd.read_csv(table_file, sep='\t', names=['on target', 'off target'])
     df['all'] = df['on target'] + df['off target']
 
     df = df.T
-    df.columns = ['num_reads', 'kbases']
-    df.kbases = df.kbases / 1000
+    df.columns = ['num_reads', 'kbases of sequence mapped']
+    df['kbases of sequence mapped'] = df['kbases of sequence mapped'] / 1000
 
     df_stats = pd.read_csv(seq_stats, sep='\t')
 
@@ -107,14 +114,29 @@ def make_coverage_summary_table(report: WFReport, table_file: Path,
 def _make_target_summary_table(report: WFReport, table_file: Path):
     section = report.add_section()
     section.markdown('''
-        ### Summary of each target
+        <br>
+        ### Targeted region summary
+        
+        This table provides a summary of all the target region detailing:
+        - chr, start, end: the location of the target region
+        - #reads: number of reads mapped to target region
+        - #basesCov: number of bases in target with at least 1x coverage
+        - targetLen: length of target region
+        - fracTargAln: proportion of the target with at least 1x coverage
+        - meanReadLen: mean read length of sequencing mapping to target
+            - TODO: This is currently mean alignment length 
+        - medianCOv: Median coverage o
+        - TODO: missing mean accuracy column
+        - strandBias: proportional difference of reads aligning to each strand.
+            A value or +1 or -1 indicates complete bias to the foward or 
+            reverse strand respectively.
         ''')
-    header = ['chr', 'start', 'end', 'target', '#reads', '#bases_cov',
+    header = ['chr', 'start', 'end', 'target', '#reads', '#basesCov',
               'targetLen', 'fracTargAln', 'meanReadLen', 'kbases',
               'medianCov', 'p', 'n']
 
     df = pd.read_csv(table_file, sep='\t', names=header)
-    df['strand bias'] = (df.p - df.n) / (df.p + df.n)
+    df['strandBias'] = (df.p - df.n) / (df.p + df.n)
     df.drop(columns=['p', 'n'], inplace=True)
     df.sort_values(
         by=["chr", "start"],
@@ -198,7 +220,7 @@ def main():
     args = parser.parse_args()
 
     report = WFReport(
-        "Workflow Template Sequencing report", "wf-cas9",
+        "Workflow for analysis of cas9-targeted sequencing", "wf-cas9",
         revision=args.revision, commit=args.commit)
 
     # Add reads summary section
