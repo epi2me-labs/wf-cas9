@@ -17,10 +17,10 @@ import pandas as pd
 def _plot_target_coverage(report: WFReport, target_coverage: Path):
     section = report.add_section()
     section.markdown('''
-    <br>
+    <br><br>
     ### Target coverage 
     
-    Each of the following plot show the amount of coverage, per strand,  
+    Each of the following plots show the amount of coverage, per strand  
     in discretized bins of 100 bp.
     ''')
 
@@ -119,15 +119,15 @@ def _make_target_summary_table(report: WFReport, table_file: Path):
         ### Targeted region summary
         
         This table provides a summary of all the target region detailing:
-        - chr, start, end: the location of the target region
-        - #reads: number of reads mapped to target region
-        - #basesCov: number of bases in target with at least 1x coverage
-        - targetLen: length of target region
-        - fracTargAln: proportion of the target with at least 1x coverage
-        - meanReadLen: mean read length of sequencing mapping to target
+        * chr, start, end: the location of the target region
+        * #reads: number of reads mapped to target region
+        * #basesCov: number of bases in target with at least 1x coverage
+        * targetLen: length of target region
+        * fracTargAln: proportion of the target with at least 1x coverage
+        * meanReadLen: mean read length of sequencing mapping to target
             - TODO: This is currently mean alignment length 
-        - TODO: missing mean accuracy column
-        - strandBias: proportional difference of reads aligning to each strand.
+        * TODO: missing mean accuracy column
+        * strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or 
             reverse strand respectively.
         ''')
@@ -152,6 +152,19 @@ def _plot_background(report: WFReport, background: Path,
     section.markdown('''
             <br>
             ### Coverage distribution
+            
+            Naturally determining the boundary between "off-target" and 
+            "background" using the coverage data is a heuristic. 
+            To get a qualitative feel for this distinction we can plot a 
+            histogram of the number of genome tiles with defined coverage. 
+            
+            The background histogram should naturally be be skewed heavily
+            to the left, this noise being expected when many regions in the
+            genome have a single read mapping.
+            
+            The target histogram would be skewed towards the right and high 
+            coverage if the targeted sequencing approach has worked as intended
+            
             ''')
     header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
               'tileLen', 'fracTileAln']
@@ -163,7 +176,10 @@ def _plot_background(report: WFReport, background: Path,
 
     plot = hist.histogram([df['#reads'].values, target_coverage['coverage']],
                           colors=['#1A85FF', '#D41159'], normalize=True,
-                          weights=weights, names=['Background', 'target'])
+                          weights=weights, names=['Background', 'target'],
+                          x_axis_label='Coverage',
+                          y_axis_label='Proportion of reads (need to check)')
+
     section.plot(plot)
 
 
@@ -174,9 +190,12 @@ def _make_offtarget_hotspot_table(report: WFReport, bg: Path):
             <br>
             ### Off-target hotspots
             
-            Off target regions are defined here as all regions of the genome
-            not within 1kb of a target region. An off-target hotspot is 
-            a off-target region with contiguous overlapping reads.
+            Off target regions are again defined here as all regions of the 
+            genome not within 1kb of a target region. 
+            
+            An off-target hotspot is a off-target region with contiguous 
+            overlapping reads. These hotspots may indicate genomic regions
+            that are 
             ''')
     df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'numReads'],
                      )
@@ -230,6 +249,20 @@ def main():
     report = WFReport(
         "Workflow for analysis of cas9-targeted sequencing", "wf-cas9",
         revision=args.revision, commit=args.commit)
+
+    intro_section = report.add_section()
+    intro_section.markdown('''
+    The workflow aids with the quantification of the non-target depletion and 
+    provides information on mapping characteristics that highlight the cas9 
+    targeted sequencin protocol performance. The figures plotted include 
+    depth-of-coverage over the target regions and strand bias over these 
+    regions. The location and peaks of coverage and local biases in 
+    strandedness may be used to assess the performance of guide-RNA sequences 
+    and may highlight guide RNAs that are not performing. A review of likely 
+    off-target regions over-represented within the sequence collection may 
+    inform of strategies to refine guide-RNA design.
+    ''')
+
 
     # Add reads summary section
     for id_, summ in zip(args.sample_ids, args.summaries):
