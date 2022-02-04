@@ -76,7 +76,7 @@ def make_coverage_summary_table(report: WFReport, table_file: Path,
     section = report.add_section()
     section.markdown('''
         ### Summary of on-target and off-target reads. 
-        On target
+        This table summaries
         ''')
     df = pd.read_csv(table_file, sep='\t', names=['on target', 'off target'])
     df['all'] = df['on target'] + df['off target']
@@ -209,7 +209,7 @@ def main():
                 header='#### Read stats: {}'.format(id_)
             ))
 
-    _make_coverage_summary_table(report, args.coverage_summary, args.summaries[0],
+    make_coverage_summary_table(report, args.coverage_summary, args.summaries[0],
                                  args.on_off)
     _make_target_summary_table(report, args.target_summary)
     target_coverage = _plot_target_coverage(report, args.target_coverage)
@@ -226,15 +226,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
-    # sys.argv.extend([
-    #     '/Users/Neil.Horner/work/testing/cas9/output/report.html',
-    #     '--summaries', '/Users/Neil.Horner/work/testing/cas9/test_data/fastq_pass.stats',
-    #     '--versions', '/Users/Neil.Horner/work/testing/cas9/test_data/versions.txt',
-    #     '--params', '/Users/Neil.Horner/work/testing/cas9/test_data/params.json',
-    #
-    #     '--coverage_summary', '/Users/Neil.Horner/work/testing/cas9/output/coverage_summary.csv',
-    #     '--target_coverage', '/Users/Neil.Horner/work/testing/cas9/output/target_coverage.csv'
-    # ])
-
     main()
