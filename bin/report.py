@@ -166,7 +166,18 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             key=natsort_keygen(),
             inplace=True
         )
-        section.markdown(f"{id_}")
+        df = df.astype({
+            'start': int,
+            'end': int,
+            '#reads': int,
+            '#basesCov': int,
+            'targetLen': int,
+            'meanReadLen': int,
+            'kbases': int
+        })
+        df = df.round({'strandBias': 2})
+
+        section.markdown(f"Sample id: {id_}")
         section.table(df, searchable=False, paging=False)
 
 
