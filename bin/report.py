@@ -146,8 +146,12 @@ def _make_target_summary_table(report: WFReport, table_file: Path):
     section.table(df, searchable=False, paging=False)
 
 
-def _plot_background(report: WFReport, background: Path,
-                    target_coverage: pd.DataFrame):
+def plot_tiled_coverage_hist(report: WFReport, background: Path,
+                             target_coverage: pd.DataFrame):
+    """
+    Histograms of on-target and off-target (proximal removed) coverage over
+    tiled regions.
+    """
     section = report.add_section()
     section.markdown('''
             <br>
@@ -170,15 +174,18 @@ def _plot_background(report: WFReport, background: Path,
               'tileLen', 'fracTileAln']
 
     df = pd.read_csv(background, sep='\t', names=header)
-    target_weight = len(df) / len(target_coverage)
-    weights = [[1] * len(df),
-               [target_weight] * len(target_coverage)]
+
+    len_bg = len(df['#reads'].values)
+    len_target = len(target_coverage['coverage'])
+    weights = [[1 / len_bg] * len_bg,
+               [1 / len_target] * len_target]
 
     plot = hist.histogram([df['#reads'].values, target_coverage['coverage']],
                           colors=['#1A85FF', '#D41159'], normalize=True,
                           weights=weights, names=['Background', 'target'],
                           x_axis_label='Coverage',
-                          y_axis_label='Proportion of reads (need to check)')
+                          y_axis_label='Proportion of reads (normalized'
+                                       'by class size')
 
     section.plot(plot)
 
@@ -243,7 +250,7 @@ def main():
         help="Tiled background coverage")
     parser.add_argument(
         "--on_off", required=True, type=Path,
-        help="Bed with 5th column of target name of 'off")
+        help="Bed file. 5th column containing target or empty for off-target")
     args = parser.parse_args()
 
     report = WFReport(
@@ -254,7 +261,7 @@ def main():
     intro_section.markdown('''
     The workflow aids with the quantification of the non-target depletion and 
     provides information on mapping characteristics that highlight the cas9 
-    targeted sequencin protocol performance. The figures plotted include 
+    targeted sequencing protocol performance. The figures plotted include 
     depth-of-coverage over the target regions and strand bias over these 
     regions. The location and peaks of coverage and local biases in 
     strandedness may be used to assess the performance of guide-RNA sequences 
@@ -276,7 +283,7 @@ def main():
                                  args.on_off)
     _make_target_summary_table(report, args.target_summary)
     target_coverage = _plot_target_coverage(report, args.target_coverage)
-    _plot_background(report, args.background, target_coverage)
+    plot_tiled_coverage_hist(report, args.background, target_coverage)
     _make_offtarget_hotspot_table(report, args.off_target_hotspots)
 
     report.add_section(

@@ -247,6 +247,7 @@ process background {
         tuple val(sample_id), path('*off_target_hotspots.bed'), emit: hotspots
     script:
     """
+    # Slop = padding of targets
     bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
     # remove reads that overlap slopped targets
     bedtools intersect -v -a $aln -b - -wa | \
