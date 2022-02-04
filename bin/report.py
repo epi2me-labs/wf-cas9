@@ -17,6 +17,7 @@ import pandas as pd
 def _plot_target_coverage(report: WFReport, target_coverage: Path):
     section = report.add_section()
     section.markdown('''
+    <br>
     ### Target coverage 
     
     Each of the following plot show the amount of coverage, per strand,  
@@ -125,7 +126,6 @@ def _make_target_summary_table(report: WFReport, table_file: Path):
         - fracTargAln: proportion of the target with at least 1x coverage
         - meanReadLen: mean read length of sequencing mapping to target
             - TODO: This is currently mean alignment length 
-        - medianCOv: Median coverage o
         - TODO: missing mean accuracy column
         - strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or 
@@ -150,6 +150,7 @@ def _plot_background(report: WFReport, background: Path,
                     target_coverage: pd.DataFrame):
     section = report.add_section()
     section.markdown('''
+            <br>
             ### Coverage distribution
             ''')
     header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
@@ -170,11 +171,18 @@ def _make_offtarget_hotspot_table(report: WFReport, bg: Path):
 
     section = report.add_section()
     section.markdown('''
+            <br>
             ### Off-target hotspots
+            
+            Off target regions are defined here as all regions of the genome
+            not within 1kb of a target region. An off-target hotspot is 
+            a off-target region with contiguous overlapping reads.
             ''')
-    df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'num_reads'],
+    df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'numReads'],
                      )
-    df.sort_values('num_reads', ascending=False, inplace=True)
+    df['hotspotLength'] = df.end - df.start
+    df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
+    df.sort_values('numReads', ascending=False, inplace=True)
     # t = 'columnDefs: [{ "width": "5%", "targets": [2, 3] }]'
     section.filterable_table(df, index=False, table_params=None)
 
