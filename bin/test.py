@@ -1,16 +1,18 @@
 import pandas as pd
 
-df_on = pd.read_csv("/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/on_intervals.bed", sep='\t',
-                    names=['chr', 'start', 'end'])
+import sys
+sys.path.insert(0, '/Users/Neil.Horner/git/workflows/wf-cas9/bin/report.py')
 
-df_on['int_len'] = df_on.end - df_on.start
-total_on = df_on['int_len'].sum()
-print(total_on)
+from pathlib import Path
+from aplanat import report as r
+import report
 
 
-df_off = pd.read_csv("/Users/Neil.Horner/work/workflow_outputs/cas9/grch38/off_intervals.bed", sep='\t',
-                    names=['chr', 'start', 'end'])
+dir_ = Path('/Users/Neil.Horner/work/workflow_outputs/cas9/workspace/cb/66402ed6d345d237048983e97d7856')
 
-df_off['int_len'] = df_off.end - df_off.start
-total_off = df_off['int_len'].sum()
-print(total_off)
+rp = r.WFReport('test', 'test')
+
+
+report._make_coverage_summary_table(rp, dir_ / 'fastq_pass_on_off_summ.csv',
+                                    dir_ / 'fastq_pass.stats',
+                                    dir_ / 'fastq_pass_on_off.bed')

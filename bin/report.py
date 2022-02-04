@@ -4,7 +4,7 @@
 from pathlib import Path
 import argparse
 
-from aplanat import bars, hist, lines
+from aplanat import hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
@@ -65,21 +65,43 @@ def _plot_target_coverage(report: WFReport, target_coverage: Path):
     return cov
 
 
-def _make_coverage_summary_table(report: WFReport, table_file: Path):
+def make_coverage_summary_table(report: WFReport, table_file: Path,
+                                 seq_stats: Path, on_off: Path):
     """
-    NOTE: Still need to add in mean read length. This will need to be got
-    from the summarise reads output
+    Summary table all on and off target reads. On target here means
+    >=1bp overlap with target and off target the rest. Do we need to change the
+    definition here to exclude proximal hits from the off-targets as is done
+    later
     """
     section = report.add_section()
     section.markdown('''
-        ### Summary on and off-target reads 
-        Needs work. Figures do not match tutorial output
+        ### Summary of on-target and off-target reads. 
+        On target
         ''')
-    df = pd.read_csv(table_file, sep='\t', names=['on', 'off'])
-    df.index = ['num_reads', 'num_bases']
+    df = pd.read_csv(table_file, sep='\t', names=['on target', 'off target'])
+    df['all'] = df['on target'] + df['off target']
 
-    df.rename(columns={df.columns[0]: ""}, inplace=True)
-    section.table(df, searchable=False, paging=False)
+    df = df.T
+    df.columns = ['num_reads', 'kbases']
+    df.kbases = df.kbases / 1000
+
+    df_stats = pd.read_csv(seq_stats, sep='\t')
+
+    df_onoff = pd.read_csv(on_off, sep='\t',
+                           names=['chr', 'start', 'end', 'read_id', 'target'])
+
+    df_onoff['target'].fillna('OFF', inplace=True)
+    df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
+                   left_on='read_id', right_on='read_id')
+
+    mean_read_len = [df_m[df_m.target != 'OFF'].read_length.mean(),
+           df_m[df_m.target == 'OFF'].read_length.mean(),
+                     df_m.read_length.mean()]
+
+    df['mean read length'] = mean_read_len
+    df = df.astype('int')
+
+    section.table(df, searchable=False, paging=False, index=True)
 
 
 def _make_target_summary_table(report: WFReport, table_file: Path):
@@ -128,10 +150,11 @@ def _make_offtarget_hotspot_table(report: WFReport, bg: Path):
     section.markdown('''
             ### Off-target hotspots
             ''')
-
-    df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'num_reads'])
-    df.sort_values('num_reads', inplace=True)
-    section.filterable_table(df)
+    df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'num_reads'],
+                     )
+    df.sort_values('num_reads', ascending=False, inplace=True)
+    # t = 'columnDefs: [{ "width": "5%", "targets": [2, 3] }]'
+    section.filterable_table(df, index=False, table_params=None)
 
 
 def main():
@@ -169,6 +192,9 @@ def main():
     parser.add_argument(
         "--off_target_hotspots", required=True, type=Path,
         help="Tiled background coverage")
+    parser.add_argument(
+        "--on_off", required=True, type=Path,
+        help="Bed with 5th column of target name of 'off")
     args = parser.parse_args()
 
     report = WFReport(
@@ -183,9 +209,10 @@ def main():
                 header='#### Read stats: {}'.format(id_)
             ))
 
-    _make_coverage_summary_table(report, args.coverage_summary)
+    _make_coverage_summary_table(report, args.coverage_summary, args.summaries[0],
+                                 args.on_off)
     _make_target_summary_table(report, args.target_summary)
-    _target_coverage = plot_target_coverage(report, args.target_coverage)
+    target_coverage = _plot_target_coverage(report, args.target_coverage)
     _plot_background(report, args.background, target_coverage)
     _make_offtarget_hotspot_table(report, args.off_target_hotspots)
 

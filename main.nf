@@ -214,14 +214,17 @@ process coverage_summary {
               path(aln)
     output:
         tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
+        tuple val(sample_id), path('*on_off.bed'), emit: on_off
     script:
     """
-    # num_reads, num_bases, mean read_len
-    bedtools intersect -a $aln -b $targets -wa -wb -v > off.bed
-    bedtools intersect -a $aln -b $targets -wa -wb > on.bed
+    # For table with cols:  num_reads, num_bases, mean read_len
+    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4  > off.bed
+    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > on.bed
 
-    numread_on=\$(cat on.bed | wc -l)
-    numread_off=\$(cat off.bed | wc -l)
+    numread_on=\$(cat on.bed | wc -l | tr -d ' ')
+    numread_off=\$(cat off.bed | wc -l | tr -d ' ')
+
+    cat on.bed off.bed > ${sample_id}_on_off.bed
 
     bases_on=\$(cat on.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | bedtools merge -i - | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
@@ -266,7 +269,8 @@ process makeReport {
               path(target_summary_table),
               path(background),
               path(off_target_hotspots),
-              path(coverage_summary)
+              path(coverage_summary),
+              path(on_off)
     output:
         path "wf-cas9-*.html", emit: report
     script:
@@ -281,7 +285,8 @@ process makeReport {
         --sample_ids $sample_ids \
         --background $background \
         --off_target_hotspots $off_target_hotspots \
-        --coverage_summary $coverage_summary
+        --coverage_summary $coverage_summary \
+        --on_off $on_off
     """
 }
 
@@ -365,6 +370,7 @@ workflow pipeline {
                         .join(background.out.table)
                         .join(background.out.hotspots)
                         .join(coverage_summary.out.summary)
+                        .join(coverage_summary.out.on_off)
 
 //                         .join(background.out.table)
                   )
