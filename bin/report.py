@@ -252,7 +252,7 @@ def make_offtarget_hotspot_table(report: WFReport, sample_ids: List,
         df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
         df.sort_values('numReads', ascending=False, inplace=True)
         # Just a few rows for init view until we can use tables in tabs
-        tab_params = {'pageLength': 5}
+        tab_params = {'pageLength': 15}
         section.markdown(f'Sample: {id_}')
         section.filterable_table(df, index=False, table_params=tab_params)
 

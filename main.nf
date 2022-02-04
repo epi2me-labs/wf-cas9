@@ -229,7 +229,7 @@ process coverage_summary {
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
     cat on.bed off.bed > ${sample_id}_on_off.bed
-    
+
     bases_on=\$(cat on.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
