@@ -36,6 +36,11 @@ The primary outputs of the workflow include:
 * an HTML report document detailing the primary findings of the workflow.
 
 
+To run this workflow on an evaluation dataset use 
+``` 
+evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
+```
+
 ## Useful links
 
 * [nextflow](https://www.nextflow.io/)
