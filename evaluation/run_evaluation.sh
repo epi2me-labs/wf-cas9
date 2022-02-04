@@ -16,13 +16,14 @@ if [[ "$#" -eq 2 ]]; then
   CONFIG="-c $2";
 fi
 
+
 PROJDIR=$1
 INPUT="$PROJDIR/sample_cas9/fastq_pass"
+#INPUT="$PROJDIR/multisample_cas9"
 
 if [[ ! -d "$PROJDIR/sample_cas9" ]];
 then
-  # The reads
-#  echo "$site/cas9_tutorial/sample_cas9.tar.gz"
+# The reads
   wget -P $PROJDIR "$site/cas9_tutorial/sample_cas9.tar.gz"
   tar -xzvf "$PROJDIR/sample_cas9.tar.gz"
 #  # Cas9 targets
@@ -30,8 +31,6 @@ then
 #  # Reference genome
   wget -P $PROJDIR $site/grch38.tar.gz
   tar -xzvf $PROJDIR/grch38.tar.gz -C $PROJDIR
-  # mini_align will not like this file being present
-#  rm $PROJDIR/grch38/grch38.fasta.gz.fai
 fi
 
 nextflow run ../ --fastq $INPUT --ref_genome $PROJDIR/grch38/grch38.fasta.gz \

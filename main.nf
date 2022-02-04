@@ -11,6 +11,7 @@
 //        as an entry point when using this workflow in isolation.
 
 import groovy.json.JsonBuilder
+import nextflow.util.BlankSeparatedList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
@@ -175,9 +176,11 @@ process target_summary {
     # Bed file for mapping tile to target
     bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
 
-    # Get alignment coverage at tiles per strand
-    cat $aln | bedtools coverage -a tiles_int_targets.bed -b - > target_cov.bed
-    bedtools groupby -i target_cov.bed -g 1 -c 9 -o median | cut -f 2  > median_coverage.bed
+    # Get alignment coverage at tiles per strand. Note:
+    cat $aln | bedtools coverage -a tiles_int_targets.bed -b -  > target_cov.bed
+    # Get median coverage (col 9) by target (col 8)
+    # bedtools sort breaks here for reasons unknown, so is not done.
+    bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Map targets to aln
     cat $aln | bedtools intersect -a - -b $targets -wb > aln_tagets.bed
@@ -203,7 +206,7 @@ process target_summary {
       pos.bed \
       neg.bed > ${sample_id}_target_summary.bed
 
-    rm mean_read_len.bed kbases.bed median_coverage.bed pos.bed neg.bed
+    #rm mean_read_len.bed kbases.bed median_coverage.bed pos.bed neg.bed
     """
 }
 
@@ -277,6 +280,8 @@ process makeReport {
         path "wf-cas9-*.html", emit: report
     script:
         report_name = "wf-cas9-" + params.report_name + '.html'
+        // Convert the sample_id arrayList.
+        sids = new BlankSeparatedList(sample_ids)
     """
     report.py $report_name \
         --summaries $seq_summaries \
@@ -284,7 +289,7 @@ process makeReport {
         --params params.json \
         --target_coverage $target_coverage \
         --target_summary $target_summary_table \
-        --sample_ids $sample_ids \
+        --sample_ids $sids \
         --background $background \
         --off_target_hotspots $off_target_hotspots \
         --coverage_summary $coverage_summary \
@@ -360,11 +365,9 @@ workflow pipeline {
                     align_reads.out.bed)
 
         coverage_summary(targets,
-                         align_reads.out.bed
-                        .join(summariseReads.out.stats)
-                        )
+                         align_reads.out.bed)
 
-        report = makeReport(software_versions.collect(),
+        report = makeReport(software_versions,
                         workflow_params,
                         summariseReads.out.stats
                         .join(target_coverage.out.target_coverage)
@@ -373,16 +376,12 @@ workflow pipeline {
                         .join(background.out.hotspots)
                         .join(coverage_summary.out.summary)
                         .join(coverage_summary.out.on_off)
-
-//                         .join(background.out.table)
+                        .toList().transpose().toList()
                   )
-//                         .join(overlaps.out.target_coverage)
-//                         .join(overlaps.out.target_summary)
-//                         )
+
     emit:
         results = summariseReads.out.stats
         report
-        // TODO: use something more useful as telemetry
         telemetry = workflow_params
 }
 
