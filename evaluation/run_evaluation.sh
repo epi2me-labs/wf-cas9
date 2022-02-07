@@ -35,4 +35,4 @@ fi
 
 nextflow run ../ --fastq $INPUT --ref_genome $PROJDIR/grch38/grch38.fasta.gz \
  --targets $PROJDIR/targets.bed --out_dir $PROJDIR/output \
- -w $PROJDIR/workspace -profile local -resume $CONFIG
+ -w $PROJDIR/workspace -profile standard -resume $CONFIG

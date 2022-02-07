@@ -63,6 +63,7 @@ process getParams {
 }
 
 process make_tiles {
+    label 'cas9'
     input:
         path chrom_sizes
     output:

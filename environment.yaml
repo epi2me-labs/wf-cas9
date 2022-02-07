@@ -14,3 +14,4 @@ dependencies:
     - pybedtools
     - samtools
     - natsort
+    - minimap2
