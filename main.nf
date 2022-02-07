@@ -123,9 +123,6 @@ process target_coverage {
     /* Call the python processing script and get back CSVs that will be used in the report
     emits
         target_coverage: tiled csv for creating plots
-        coverage summary: csv for table with stats for all targets aggregated
-        target_summary: csv with summary info for each plot
-
     # NOTE
     use \W\+\W as strand may move columns in future versions
 
@@ -184,21 +181,21 @@ process target_summary {
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Map targets to aln
-    cat $aln | bedtools intersect -a - -b $targets -wb > aln_tagets.bed
+    cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
 
     # Strand bias
-    cat aln_tagets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
+    cat aln_targets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
     bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
 
-    cat aln_tagets.bed | grep '\\W-\\W' | bedtools coverage -a - -b $targets -wb | \
+    cat aln_targets.bed | grep '\\W-\\W' | bedtools coverage -a - -b $targets -wb | \
      bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
 
     # Mean read len
     # Actually this is mean alignment length
-    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
+    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
 
     # bases of coverage
-    cat aln_tagets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > bases.bed
+    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > bases.bed
 
     paste target_summary_temp.bed \
       mean_read_len.bed \
@@ -220,6 +217,7 @@ process coverage_summary {
     output:
         tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
         tuple val(sample_id), path('*on_off.bed'), emit: on_off
+        tuple val(sample_id), path('*on.bed'), emit: on
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
@@ -261,6 +259,22 @@ process background {
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
     bedtools merge -i - | bedtools coverage -a - -b $aln | \
     cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+    """
+}
+
+
+process get_on_target_reads {
+    label "cas9"
+    input:
+        tuple val(sample_id),
+              path(fastq),
+              path(on_bed)
+    output:
+         tuple val(sample_id), path('*ontarget.fastq'), emit: fastq
+    script:
+    """
+    cat $on_bed | cut -f 4 > seqids
+    cat $fastq | seqkit grep -f seqids -o ${sample_id}_ontarget.fastq
     """
 }
 
@@ -368,6 +382,10 @@ workflow pipeline {
         coverage_summary(targets,
                          align_reads.out.bed)
 
+        get_on_target_reads(summariseReads.out.reads
+                            .join(coverage_summary.out.on)
+                            )
+
         report = makeReport(software_versions,
                         workflow_params,
                         summariseReads.out.stats
@@ -382,6 +400,7 @@ workflow pipeline {
 
     emit:
         results = summariseReads.out.stats
+                  .concat(get_on_target_reads.out.fastq)
         report
         telemetry = workflow_params
 }
