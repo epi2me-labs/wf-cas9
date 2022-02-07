@@ -11,25 +11,29 @@ from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
 from bokeh.layouts import gridplot
 from bokeh.models import Legend, Panel, Tabs
-from natsort import natsorted, natsort_keygen
+from natsort import natsort_keygen, natsorted
 import pandas as pd
 
 
 def plot_target_coverage(report: WFReport, sample_ids,
-                          target_coverages: List[Path]):
+                         target_coverages: List[Path]):
+    """Make coverage plots of each target.
+
+    Detailing positive and negative strand coverage.
+    """
     section = report.add_section()
     section.markdown('''
     <br><br>
-    ### Target coverage 
-    
-    Each of the following plots show the amount of coverage, per strand  
+    ### Target coverage
+
+    Each of the following plots show the amount of coverage, per strand
     in discretized bins of 100 bp.
     ''')
 
     header = ["chr", "start", "end", 'name_f', "target", "coverage_f",
               'name_r', 'coverage_r']
     tabs = []
-    all_cov = [] # merge f + r coverage for use in other functions
+    all_cov = []  # merge f + r coverage for use in other functions
     for (id_, t_cov) in zip(sample_ids, target_coverages):
         df = pd.read_csv(t_cov, names=header, sep='\t')
         dfg = df.groupby('target')
@@ -50,7 +54,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
                 colors=['#1A85FF', '#D41159'],
                 ylim=ylim,
                 height=200, width=300
-                )
+            )
             p.xaxis.formatter.use_scientific = False
             p.xaxis.major_label_orientation = 3.14 / 6
 
@@ -83,7 +87,9 @@ def make_coverage_summary_table(report: WFReport,
                                 seq_stats: List[Path],
                                 on_offs: List[Path]):
     """
-    Summary table all on and off target reads. On target here means
+    Summary table detailing all on and off target reads.
+
+    On target here means:
     >=1bp overlap with target and off target the rest. Do we need to change the
     definition here to exclude proximal hits from the off-targets as is done
     later
@@ -99,26 +105,36 @@ def make_coverage_summary_table(report: WFReport,
         ''')
 
     for id_, table_file, stats, on_off in \
-        zip(sample_ids, table_files, seq_stats, on_offs):
+            zip(sample_ids, table_files, seq_stats, on_offs):
 
-        df = pd.read_csv(table_file, sep='\t', names=['on target', 'off target'])
+        df = pd.read_csv(
+            table_file, sep='\t', names=[
+                'on target', 'off target'])
         df['all'] = df['on target'] + df['off target']
 
         df = df.T
         df.columns = ['num_reads', 'kbases of sequence mapped']
-        df['kbases of sequence mapped'] = df['kbases of sequence mapped'] / 1000
+        df['kbases of sequence mapped'] = \
+            df['kbases of sequence mapped'] / 1000
 
         df_stats = pd.read_csv(stats, sep='\t')
 
-        df_onoff = pd.read_csv(on_off, sep='\t',
-                               names=['chr', 'start', 'end', 'read_id', 'target'])
+        df_onoff = pd.read_csv(
+            on_off,
+            sep='\t',
+            names=[
+                'chr',
+                'start',
+                'end',
+                'read_id',
+                'target'])
 
         df_onoff['target'].fillna('OFF', inplace=True)
         df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
-                       left_on='read_id', right_on='read_id')
+                              left_on='read_id', right_on='read_id')
 
         mean_read_len = [df_m[df_m.target != 'OFF'].read_length.mean(),
-               df_m[df_m.target == 'OFF'].read_length.mean(),
+                         df_m[df_m.target == 'OFF'].read_length.mean(),
                          df_m.read_length.mean()]
 
         df['mean read length'] = mean_read_len
@@ -129,24 +145,25 @@ def make_coverage_summary_table(report: WFReport,
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
-                               table_files: List[Path]):
+                              table_files: List[Path]):
+    """Create a table of target summary statistics."""
     section = report.add_section()
     section.markdown('''
         <br>
         ### Targeted region summary
-        
+
         This table provides a summary of all the target region detailing:
-        
+
         * chr, start, end: the location of the target region
-        * \#reads: number of reads mapped to target region
-        * \#basesCov: number of bases in target with at least 1x coverage
+        * \\#reads: number of reads mapped to target region
+        * \\#basesCov: number of bases in target with at least 1x coverage
         * targetLen: length of target region
         * fracTargAln: proportion of the target with at least 1x coverage
         * meanReadLen: mean read length of sequencing mapping to target
-            - TODO: This is currently mean alignment length 
+            - TODO: This is currently mean alignment length
         * TODO: missing mean accuracy column
         * strandBias: proportional difference of reads aligning to each strand.
-            A value or +1 or -1 indicates complete bias to the foward or 
+            A value or +1 or -1 indicates complete bias to the foward or
             reverse strand respectively.
         * kbases: kbases of total reads mapped to target
         ''')
@@ -185,27 +202,28 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                              background: Path, target_coverage:
                              List[pd.DataFrame]):
-    """
-    Histograms of on-target and off-target (proximal removed) coverage over
-    tiled regions.
+    """Coverage histograms.
+
+    Show on same plots on-target and off-target (proximal removed) coverage
+    over bins.
     """
     section = report.add_section()
     section.markdown('''
             <br>
             ### Coverage distribution
-            
-            Naturally determining the boundary between "off-target" and 
-            "background" using the coverage data is a heuristic. 
-            To get a qualitative feel for this distinction we can plot a 
-            histogram of the number of genome tiles with defined coverage. 
-            
+
+            Naturally determining the boundary between "off-target" and
+            "background" using the coverage data is a heuristic.
+            To get a qualitative feel for this distinction we can plot a
+            histogram of the number of genome tiles with defined coverage.
+
             The background histogram should naturally be be skewed heavily
             to the left, this noise being expected when many regions in the
             genome have a single read mapping.
-            
-            The target histogram would be skewed towards the right and high 
+
+            The target histogram would be skewed towards the right and high
             coverage if the targeted sequencing approach has worked as intended
-            
+
             ''')
     header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
               'tileLen', 'fracTileAln']
@@ -219,35 +237,50 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
         weights = [[1 / len_bg] * len_bg,
                    [1 / len_target] * len_target]
 
-        plot = hist.histogram([df['#reads'].values, target_coverage['coverage']],
-                              colors=['#1A85FF', '#D41159'], normalize=True,
-                              weights=weights, names=['Background', 'target'],
+        plot = hist.histogram([df['#reads'].values,
+                               target_coverage['coverage']],
+                              colors=['#1A85FF',
+                                      '#D41159'],
+                              normalize=True,
+                              weights=weights,
+                              names=['Background',
+                                     'target'],
                               x_axis_label='Coverage',
                               y_axis_label='Proportion of reads (normalized'
-                                           'by class size')
+                              'by class size')
         plots.append(plot)
     grid = gridplot(plots, ncols=2, width=400, height=300)
     section.plot(grid)
 
 
 def make_offtarget_hotspot_table(report: WFReport, sample_ids: List,
-                                  background: List[Path]):
+                                 background: List[Path]):
+    """Make a table of off-target hotspot regions.
 
+    Using aplanat.report.FilterableTable to crate a column-searchable table.
+    """
     section = report.add_section()
     section.markdown('''
             <br>
             ### Off-target hotspots
-            
-            Off target regions are again defined here as all regions of the 
-            genome not within 1kb of a target region. 
-            
-            An off-target hotspot is a off-target region with contiguous 
+
+            Off target regions are again defined here as all regions of the
+            genome not within 1kb of a target region.
+
+            An off-target hotspot is a off-target region with contiguous
             overlapping reads. These hotspots may indicate genomic regions
-            that are 
+            that are
             ''')
     for (id_, bg) in zip(sample_ids, background):
-        df = pd.read_csv(bg, sep='\t', names=['chr', 'start', 'end', 'numReads'],
-                         )
+        df = pd.read_csv(
+            bg,
+            sep='\t',
+            names=[
+                'chr',
+                'start',
+                'end',
+                'numReads'],
+        )
         df['hotspotLength'] = df.end - df.start
         df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
         df.sort_values('numReads', ascending=False, inplace=True)
@@ -278,22 +311,22 @@ def main():
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
     parser.add_argument(
-        "--coverage_summary", required=True,  nargs='+', type=Path,
+        "--coverage_summary", required=True, nargs='+', type=Path,
         help="Contigency table coverage summary csv")
     parser.add_argument(
-        "--target_coverage", required=True,  nargs='+', type=Path,
+        "--target_coverage", required=True, nargs='+', type=Path,
         help="Tiled coverage for each target")
     parser.add_argument(
-        "--target_summary", required=True,  nargs='+', type=Path,
+        "--target_summary", required=True, nargs='+', type=Path,
         help="Summary stats for each target. CSV.")
     parser.add_argument(
-        "--background", required=True,  nargs='+', type=Path,
+        "--background", required=True, nargs='+', type=Path,
         help="Tiled background coverage")
     parser.add_argument(
-        "--off_target_hotspots", required=True,  nargs='+', type=Path,
+        "--off_target_hotspots", required=True, nargs='+', type=Path,
         help="Tiled background coverage")
     parser.add_argument(
-        "--on_off", required=True,  nargs='+', type=Path,
+        "--on_off", required=True, nargs='+', type=Path,
         help="Bed file. 5th column containing target or empty for off-target")
     args = parser.parse_args()
 
@@ -303,17 +336,16 @@ def main():
 
     intro_section = report.add_section()
     intro_section.markdown('''
-    The workflow aids with the quantification of the non-target depletion and 
-    provides information on mapping characteristics that highlight the cas9 
-    targeted sequencing protocol performance. The figures plotted include 
-    depth-of-coverage over the target regions and strand bias over these 
-    regions. The location and peaks of coverage and local biases in 
-    strandedness may be used to assess the performance of guide-RNA sequences 
-    and may highlight guide RNAs that are not performing. A review of likely 
-    off-target regions over-represented within the sequence collection may 
+    The workflow aids with the quantification of the non-target depletion and
+    provides information on mapping characteristics that highlight the cas9
+    targeted sequencing protocol performance. The figures plotted include
+    depth-of-coverage over the target regions and strand bias over these
+    regions. The location and peaks of coverage and local biases in
+    strandedness may be used to assess the performance of guide-RNA sequences
+    and may highlight guide RNAs that are not performing. A review of likely
+    off-target regions over-represented within the sequence collection may
     inform of strategies to refine guide-RNA design.
     ''')
-
 
     # Add reads summary section
     for id_, summ in zip(args.sample_ids, args.summaries):
@@ -329,7 +361,7 @@ def main():
     make_target_summary_table(report, args.sample_ids, args.target_summary)
 
     target_coverage = plot_target_coverage(report, args.sample_ids,
-                                            args.target_coverage)
+                                           args.target_coverage)
 
     plot_tiled_coverage_hist(report, args.sample_ids, args.background,
                              target_coverage)
