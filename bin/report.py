@@ -5,9 +5,6 @@ import argparse
 from pathlib import Path
 from typing import List
 
-import sys
-sys.path.insert(0, '/Users/Neil.Horner/git/aplanat')
-
 from aplanat import hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
