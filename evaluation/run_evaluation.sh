@@ -18,8 +18,8 @@ fi
 
 
 PROJDIR=$1
-#INPUT="$PROJDIR/sample_cas9/fastq_pass"
-INPUT="$PROJDIR/multisample_cas9"
+INPUT="$PROJDIR/sample_cas9/fastq_pass"
+#INPUT="$PROJDIR/multisample_cas9"
 
 if [[ ! -d "$PROJDIR/sample_cas9" ]];
 then

@@ -1,6 +1,6 @@
 
 process pingMessage {
-    label "pysam"
+    label "cas9"
     cpus 1
     input:
         val message
