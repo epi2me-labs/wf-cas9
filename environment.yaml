@@ -11,6 +11,6 @@ dependencies:
     - fastcat
     - epi2melabs
     - bedtools
-    - samtools
+    - samtools==1.10
     - natsort
     - minimap2
