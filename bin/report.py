@@ -20,6 +20,8 @@ def plot_target_coverage(report: WFReport, sample_ids,
     """Make coverage plots of each target.
 
     Detailing positive and negative strand coverage.
+
+    :param target_coverages
     """
     section = report.add_section()
     section.markdown('''
@@ -38,8 +40,9 @@ def plot_target_coverage(report: WFReport, sample_ids,
         df = pd.read_csv(t_cov, names=header, sep='\t')
         dfg = df.groupby('target')
 
-        ncols = 4
+        ncols = dfg.ngroups if dfg.ngroups < 5 else 4
         plots = []
+
         for i, (target, df) in enumerate(dfg):
             chrom = df.loc[df.index[0], 'chr']
             ymax = max(df.coverage_f.max(), df.coverage_r.max())
