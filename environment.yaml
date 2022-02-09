@@ -1,4 +1,4 @@
-name: epi2melabs-nf-template-workflow
+name: epi2melabs-wf-cas9
 channels:
     - epi2melabs
     - bioconda
@@ -6,7 +6,12 @@ channels:
     - defaults
 dependencies:
     - python==3.8.*
-    - aplanat >=0.5.0
+    - aplanat >=0.6.0
     - pysam
     - fastcat
     - epi2melabs
+    - bedtools
+    - samtools==1.10
+    - natsort
+    - minimap2
+    - seqkit

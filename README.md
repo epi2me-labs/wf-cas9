@@ -1,10 +1,7 @@
 # Workflow template
 
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
-template that can be used as the basis for creating new workflows.
-
-> This workflow is not intended to be used by end users.
-
+for the multiplexed analysis Cas9 targeted sequencing.
 
 ## Quickstart
 
@@ -38,6 +35,11 @@ The primary outputs of the workflow include:
 * a simple text file providing a summary of sequencing reads,
 * an HTML report document detailing the primary findings of the workflow.
 
+
+To run this workflow on an evaluation dataset use 
+``` 
+evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
+```
 
 ## Useful links
 
