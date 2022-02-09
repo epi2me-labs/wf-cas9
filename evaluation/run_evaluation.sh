@@ -9,7 +9,7 @@ if [[ "$#" -lt 1 ]]; then
 fi
 
 if [[ "$#" -eq 1 ]]; then
-    CONFIG="-c nextflow_eval.config"
+    CONFIG="-c ../nextflow.config"
 fi
 
 if [[ "$#" -eq 2 ]]; then

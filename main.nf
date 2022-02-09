@@ -143,10 +143,10 @@ process target_coverage {
     bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
 
     # Get alignment coverage at tiles per strand
-    cat $aln | grep "\\+\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cat $aln | grep "\\W+" | bedtools coverage -a tiles_int_targets.bed -b - | \
     cut -f 1,2,3,4,8,9 > pos.bed
 
-    cat $aln | grep "\\-\$" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cat $aln | grep "\\W-" | bedtools coverage -a tiles_int_targets.bed -b - | \
     cut -f 4,9 > neg.bed
 
     # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
@@ -320,7 +320,7 @@ process makeReport {
 process output {
     // publish inputs to output directory
 
-    publishDir "${params.out_dir}/output/${sample_id}", mode: 'copy', pattern: "*"
+    publishDir "${params.out_dir}/${sample_id}", mode: 'copy', pattern: "*"
     input:
         tuple val(sample_id), path(fname)
     output:
