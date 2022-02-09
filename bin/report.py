@@ -215,18 +215,18 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     section.markdown('''
             <br>
             ### Coverage distribution
-            
-            This histogram(s) show the coverage distribution of on-target and 
-            or off-target (background) reads binned by 100bp 
-            genome tiles. Off-target regions are defined as any region not 
+
+            This histogram(s) show the coverage distribution of on-target and
+            or off-target (background) reads binned by 100bp
+            genome tiles. Off-target regions are defined as any region not
             within 1kb of a target.
-            
+
             The background histogram should naturally be be skewed heavily
             to the left, this noise being expected when many regions in the
             genome have a single read mapping.
 
             The target histogram should be skewed towards the right
-            if targeted sequencing approach has enriched for reads at target 
+            if targeted sequencing approach has enriched for reads at target
             regions.
 
             ''')
