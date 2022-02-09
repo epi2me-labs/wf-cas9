@@ -108,7 +108,7 @@ process align_reads {
     input:
         path index
         path reference
-        tuple val(sample_id), file(fastq_reads)
+        tuple val(sample_id), path(fastq_reads)
     output:
         tuple val(sample_id), path("${sample_id}.sam"), emit: sam
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
