@@ -318,7 +318,7 @@ process makeReport {
 // decoupling the publish from the process steps.
 process output {
     // publish inputs to output directory
-
+    label "cas9"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
         path fname
@@ -326,9 +326,9 @@ process output {
         path fname
     """
     echo "Writing output files"
-    echo $fname
     """
 }
+
 
 
 // workflow module
@@ -384,7 +384,6 @@ workflow pipeline {
                     .toList().transpose().toList())
 
         results = get_on_target_reads.out
-            .concat(summariseReads.out.reads)
             .map {it -> it[1]}  // remove sample ids from tuple
             .concat(makeReport.out.report)
     emit:
