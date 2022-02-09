@@ -108,7 +108,7 @@ process align_reads {
     input:
         path index
         path reference
-        tuple val(sample_id), file(fastq_reads)
+        tuple val(sample_id), path(fastq_reads)
     output:
         tuple val(sample_id), path("${sample_id}.sam"), emit: sam
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
@@ -313,6 +313,21 @@ process makeReport {
     """
 }
 
+process prepare_outputs {
+    input:
+        tuple val(sample_id),
+            path(read_stats),
+            path(on_target_fastq)
+    output:
+        path "${sample_id}", emit: sample_dir
+    script:
+    """
+    mkdir "${sample_id}"
+    mv $read_stats $sample_id
+    mv $on_target_fastq $sample_id
+    """
+}
+
 
 // See https://github.com/nextflow-io/nextflow/issues/1636
 // This is the only way to publish files from a workflow whilst
@@ -320,26 +335,14 @@ process makeReport {
 process output {
     // publish inputs to output directory
 
-    publishDir "${params.out_dir}/${sample_id}", mode: 'copy', pattern: "*"
+    publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
-        tuple val(sample_id), path(fname)
+        path fname
     output:
         path fname
     """
     echo "Writing output files"
     echo $fname
-    """
-}
-
-process output_report {
-    publishDir "${params.out_dir}", mode: 'copy', pattern: "*report.html"
-
-    input:
-        path fname
-    output:
-        path fname
-    """
-    echo "Copying report"
     """
 }
 
@@ -396,10 +399,12 @@ workflow pipeline {
                     .join(coverage_summary.out.on_off)
                     .toList().transpose().toList())
 
+        prepare_outputs(summariseReads.out.stats
+            .join(get_on_target_reads.out.fastq))
+        prepare_outputs.out.view()
     emit:
-        results = summariseReads.out.stats
-                  .concat(get_on_target_reads.out.fastq)
-        report
+        results = prepare_outputs.out
+                    .concat(report)
         telemetry = workflow_params
 }
 
@@ -426,6 +431,5 @@ workflow {
 
     pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
-    output_report(pipeline.out.report)
     end_ping(pipeline.out.telemetry)
 }
