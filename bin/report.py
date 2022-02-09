@@ -81,7 +81,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
         all_cov.append(cov)
     cover_panel = Tabs(tabs=tabs)
     section.plot(cover_panel)
-    return cov
+    return all_cov
 
 
 def make_coverage_summary_table(report: WFReport,
@@ -143,7 +143,7 @@ def make_coverage_summary_table(report: WFReport,
         df['mean read length'] = mean_read_len
         df = df.astype('int')
 
-        section.markdown(f"{id_}")
+        section.markdown(f"Sample id: {id_}")
         section.table(df, searchable=False, paging=False, index=True)
 
 
@@ -162,16 +162,17 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         * \\#basesCov: number of bases in target with at least 1x coverage
         * targetLen: length of target region
         * fracTargAln: proportion of the target with at least 1x coverage
-        * meanReadLen: mean read length of sequencing mapping to target
-            - TODO: This is currently mean alignment length
+        * meanAlnlen: mean length alignment of alignment
         * TODO: missing mean accuracy column
         * strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or
             reverse strand respectively.
         * kbases: kbases of total reads mapped to target
         ''')
+
+    # Note meanAlnLen: needs to be switched to meanreadLen in next version
     header = ['chr', 'start', 'end', 'target', '#reads', '#basesCov',
-              'targetLen', 'fracTargAln', 'meanReadLen', 'kbases',
+              'targetLen', 'fracTargAln', 'meanAlnlen', 'kbases',
               'medianCov', 'p', 'n']
 
     for (id_, table_file) in zip(sample_ids, table_files):
@@ -193,7 +194,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             '#reads': int,
             '#basesCov': int,
             'targetLen': int,
-            'meanReadLen': int,
+            'meanAlnlen': int,
             'kbases': int
         })
         df = df.round({'strandBias': 2})
@@ -203,29 +204,30 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
 
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
-                             background: Path, target_coverage:
+                             background: List[Path], target_coverage:
                              List[pd.DataFrame]):
     """Coverage histograms.
 
-    Show on same plots on-target and off-target (proximal removed) coverage
+    Show on-target and off-target (proximal removed) coverage
     over bins.
     """
     section = report.add_section()
     section.markdown('''
             <br>
             ### Coverage distribution
-
-            Naturally determining the boundary between "off-target" and
-            "background" using the coverage data is a heuristic.
-            To get a qualitative feel for this distinction we can plot a
-            histogram of the number of genome tiles with defined coverage.
-
+            
+            This histogram(s) show the coverage distribution of on-target and 
+            or off-target (background) reads binned by 100bp 
+            genome tiles. Off-target regions are defined as any region not 
+            within 1kb of a target.
+            
             The background histogram should naturally be be skewed heavily
             to the left, this noise being expected when many regions in the
             genome have a single read mapping.
 
-            The target histogram would be skewed towards the right and high
-            coverage if the targeted sequencing approach has worked as intended
+            The target histogram should be skewed towards the right
+            if targeted sequencing approach has enriched for reads at target 
+            regions.
 
             ''')
     header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
@@ -236,21 +238,21 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
         df = pd.read_csv(bg, sep='\t', names=header)
 
         len_bg = len(df['#reads'].values)
-        len_target = len(target_coverage['coverage'])
+        len_target = len(tc['coverage'])
         weights = [[1 / len_bg] * len_bg,
                    [1 / len_target] * len_target]
 
         plot = hist.histogram([df['#reads'].values,
-                               target_coverage['coverage']],
+                               tc['coverage']],
                               colors=['#1A85FF',
                                       '#D41159'],
                               normalize=True,
                               weights=weights,
                               names=['Background',
-                                     'target'],
+                                     'On-target'],
                               x_axis_label='Coverage',
                               y_axis_label='Proportion of reads (normalized'
-                              'by class size')
+                              'by class size)')
         plots.append(plot)
     grid = gridplot(plots, ncols=2, width=400, height=300)
     section.plot(grid)

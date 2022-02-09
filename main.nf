@@ -259,6 +259,7 @@ process background {
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
     bedtools merge -i - | bedtools coverage -a - -b $aln | \
     cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+
     """
 }
 
