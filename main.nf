@@ -384,7 +384,6 @@ workflow pipeline {
                     .toList().transpose().toList())
 
         results = get_on_target_reads.out
-            .concat(summariseReads.out.reads)
             .map {it -> it[1]}  // remove sample ids from tuple
             .concat(makeReport.out.report)
     emit:
