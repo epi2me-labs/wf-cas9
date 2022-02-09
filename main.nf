@@ -31,7 +31,7 @@ process summariseReads {
 
     shell:
     """
-    fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} > ${sample_id}.fastq
+    fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} > "${sample_id}.fastq"
     """
 }
 
@@ -271,11 +271,11 @@ process get_on_target_reads {
               path(fastq),
               path(on_bed)
     output:
-         tuple val(sample_id), path('*ontarget.fastq'), emit: fastq
+         tuple val(sample_id), path("${sample_id}_ontarget.fastq"), emit: fastq
     script:
     """
     cat $on_bed | cut -f 4 > seqids
-    cat $fastq | seqkit grep -f seqids -o ${sample_id}_ontarget.fastq
+    cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
     """
 }
 
@@ -312,22 +312,6 @@ process makeReport {
         --on_off $on_off
     """
 }
-
-process prepare_outputs {
-    input:
-        tuple val(sample_id),
-            path(read_stats),
-            path(on_target_fastq)
-    output:
-        path "${sample_id}", emit: sample_dir
-    script:
-    """
-    mkdir "${sample_id}"
-    mv $read_stats $sample_id
-    mv $on_target_fastq $sample_id
-    """
-}
-
 
 // See https://github.com/nextflow-io/nextflow/issues/1636
 // This is the only way to publish files from a workflow whilst
@@ -399,12 +383,12 @@ workflow pipeline {
                     .join(coverage_summary.out.on_off)
                     .toList().transpose().toList())
 
-        prepare_outputs(summariseReads.out.stats
-            .join(get_on_target_reads.out.fastq))
-        prepare_outputs.out.view()
+        results = get_on_target_reads.out
+            .concat(summariseReads.out.reads)
+            .map {it -> it[1]}  // remove sample ids from tuple
+            .concat(makeReport.out.report)
     emit:
-        results = prepare_outputs.out
-                    .concat(report)
+        results
         telemetry = workflow_params
 }
 
