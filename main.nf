@@ -354,7 +354,6 @@ workflow pipeline {
         println(reads)
         build_index(ref_genome)
         summariseReads(reads)
-//         sample_ids = summariseConcatReads.out.summary.flatMap({it -> it[0]})
         software_versions = getVersions()
         workflow_params = getParams()
 
@@ -366,38 +365,36 @@ workflow pipeline {
         make_tiles(build_index.out.chrom_sizes)
 
         target_coverage(targets,
-                make_tiles.out.tiles,
-                build_index.out.chrom_sizes,
-                align_reads.out.bed)
+            make_tiles.out.tiles,
+            build_index.out.chrom_sizes,
+            align_reads.out.bed)
 
         target_summary(targets,
-                       make_tiles.out.tiles,
-                       build_index.out.chrom_sizes,
-                       align_reads.out.bed)
+            make_tiles.out.tiles,
+            build_index.out.chrom_sizes,
+            align_reads.out.bed)
 
         background(targets,
-                    make_tiles.out.tiles,
-                    build_index.out.chrom_sizes,
-                    align_reads.out.bed)
+            make_tiles.out.tiles,
+            build_index.out.chrom_sizes,
+            align_reads.out.bed)
 
         coverage_summary(targets,
-                         align_reads.out.bed)
+            align_reads.out.bed)
 
         get_on_target_reads(summariseReads.out.reads
-                            .join(coverage_summary.out.on)
-                            )
+            .join(coverage_summary.out.on))
 
         report = makeReport(software_versions,
-                        workflow_params,
-                        summariseReads.out.stats
-                        .join(target_coverage.out.target_coverage)
-                        .join(target_summary.out.table)
-                        .join(background.out.table)
-                        .join(background.out.hotspots)
-                        .join(coverage_summary.out.summary)
-                        .join(coverage_summary.out.on_off)
-                        .toList().transpose().toList()
-                  )
+                    workflow_params,
+                    summariseReads.out.stats
+                    .join(target_coverage.out.target_coverage)
+                    .join(target_summary.out.table)
+                    .join(background.out.table)
+                    .join(background.out.hotspots)
+                    .join(coverage_summary.out.summary)
+                    .join(coverage_summary.out.on_off)
+                    .toList().transpose().toList())
 
     emit:
         results = summariseReads.out.stats
