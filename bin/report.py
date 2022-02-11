@@ -114,9 +114,13 @@ def make_coverage_summary_table(report: WFReport,
     for id_, table_file, stats, on_off in \
             zip(sample_ids, table_files, seq_stats, on_offs):
 
-        df = pd.read_csv(
-            table_file, sep='\t', names=[
-                'on target', 'off target'])
+        try:
+            df = pd.read_csv(
+                table_file, sep='\t', names=[
+                    'on target', 'off target'])
+        except pd.errors.EmptyDataError as e:
+            continue
+
         df['all'] = df['on target'] + df['off target']
 
         df = df.T
@@ -136,7 +140,7 @@ def make_coverage_summary_table(report: WFReport,
                 'read_id',
                 'target'])
 
-        df_onoff['target'].fillna('OFF', inplace=True)
+        # df_onoff['target'].fillna('OFF', inplace=True)
         df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
                               left_on='read_id', right_on='read_id')
 
@@ -154,7 +158,9 @@ def make_coverage_summary_table(report: WFReport,
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
                               table_files: List[Path]):
-    """Create a table of target summary statistics."""
+    """Create a table of target summary statistics.
+    TODO: missing mean accuracy column
+    """
     section = report.add_section()
     section.markdown('''
         <br>
@@ -168,7 +174,6 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         * targetLen: length of target region
         * fracTargAln: proportion of the target with at least 1x coverage
         * meanAlnlen: mean length alignment of alignment
-        * TODO: missing mean accuracy column
         * strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or
             reverse strand respectively.
