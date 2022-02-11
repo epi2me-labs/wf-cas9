@@ -48,6 +48,10 @@ def plot_target_coverage(report: WFReport, sample_ids,
             ymax = max(df.coverage_f.max(), df.coverage_r.max())
             ylim = [0, ymax * 1.05]  # a bit of space at top of plot
 
+            # if no coverage across target, force some height.
+            if not any([df.coverage_f.any(), df.coverage_r.any()]):
+                ylim = [0, 10]
+
             p = lines.line(
                 [df.start.values, df.start.values],  # x-values
                 [df.coverage_f, df.coverage_r],      # y-values
@@ -141,6 +145,7 @@ def make_coverage_summary_table(report: WFReport,
                          df_m.read_length.mean()]
 
         df['mean read length'] = mean_read_len
+        df.fillna(0, inplace=True)
         df = df.astype('int')
 
         section.markdown(f"Sample id: {id_}")
