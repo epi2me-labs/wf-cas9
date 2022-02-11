@@ -225,6 +225,7 @@ process coverage_summary {
     output:
         tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
         tuple val(sample_id), path('*on_off.bed'), emit: on_off
+        tuple val(sample_id), path('*on.bed'), emit: on
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
