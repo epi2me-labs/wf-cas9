@@ -66,11 +66,14 @@ process make_tiles {
     label 'cas9'
     input:
         path chrom_sizes
+        path targets
     output:
         path 'tiles.bed', emit: tiles
+        path 'tiles_int_targets.bed', emit: tiles_inter_targets
     script:
     """
     bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' | gzip > tiles.bed
+    bedtools intersect -a tiles.bed -b $targets -wb > tiles_int_targets.bed
     """
 }
 
@@ -131,6 +134,7 @@ process target_coverage {
     input:
         path targets
         path tiles
+        path tiles_inter_targets
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
@@ -139,14 +143,11 @@ process target_coverage {
 
     script:
     """
-    # Bed file for mapping tile to target
-    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
-
     # Get alignment coverage at tiles per strand
-    cat $aln | grep "\\W+" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cat $aln | grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
     cut -f 1,2,3,4,8,9 > pos.bed
 
-    cat $aln | grep "\\W-" | bedtools coverage -a tiles_int_targets.bed -b - | \
+    cat $aln | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
     cut -f 4,9 > neg.bed
 
     # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
@@ -161,6 +162,7 @@ process target_summary {
     input:
         path targets
         path tiles
+        path tiles_inter_targets
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
@@ -168,20 +170,26 @@ process target_summary {
         tuple val(sample_id), path('*_target_summary.bed'), emit: table
     script:
     """
+    # Map targets to aln.
+    # If the output is empty, there are no reads intersecting targets. In this case output an empty table file
+    cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
+    if [[ ! -s aln_targets.bed ]];
+      then
+        echo "No target overlaps found for ${sample_id}"
+        touch ${sample_id}_target_summary.bed
+        exit 0
+    fi
+
     # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
+    # This orms first few columns of output table
     bedtools coverage -a $targets -b $aln | bedtools sort > target_summary_temp.bed
 
-    # Bed file for mapping tile to target
-    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
+    # Get alignment coverage at tiles per strand
+    cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
 
-    # Get alignment coverage at tiles per strand. Note:
-    cat $aln | bedtools coverage -a tiles_int_targets.bed -b -  > target_cov.bed
     # Get median coverage (col 9) by target (col 8)
     # bedtools sort breaks here for reasons unknown, so is not done.
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
-
-    # Map targets to aln
-    cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
 
     # Strand bias
     cat aln_targets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
@@ -217,7 +225,6 @@ process coverage_summary {
     output:
         tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
         tuple val(sample_id), path('*on_off.bed'), emit: on_off
-        tuple val(sample_id), path('*on.bed'), emit: on
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
@@ -349,15 +356,18 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads)
 
-        make_tiles(build_index.out.chrom_sizes)
+        make_tiles(build_index.out.chrom_sizes,
+            targets)
 
         target_coverage(targets,
             make_tiles.out.tiles,
+            make_tiles.out.tiles_inter_targets,
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
         target_summary(targets,
             make_tiles.out.tiles,
+            make_tiles.out.tiles_inter_targets,
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
