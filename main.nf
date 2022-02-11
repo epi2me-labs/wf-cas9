@@ -189,14 +189,34 @@ process target_summary {
 
     # Get median coverage (col 9) by target (col 8)
     # bedtools sort breaks here for reasons unknown, so is not done.
+
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Strand bias
-    cat aln_targets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
-    bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
+    if grep -q "\\W+\\W" aln_targets.bed
+        then
+            cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -a - -b $targets -wb | \
+            bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
+    else
+        touch pos.bed
+    fi
 
-    cat aln_targets.bed | grep '\\W-\\W' | bedtools coverage -a - -b $targets -wb | \
-     bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
+    if grep -q "\\W-\\W" aln_targets.bed
+        then
+            cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -a - -b $targets -wb | \
+            bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > neg.bed
+    else
+        touch pos.bed
+    fi
+
+#    cat aln_targets.bed | grep '\\W-\\W' > neg_temp
+#    if [[ -s neg_temp ]];
+#      then
+#        cat neg_temp | bedtools coverage -a - -b $targets -wb | \
+#        bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
+#    else
+#      touch neg.bed
+#    fi
 
     # Mean read len
     # Actually this is mean alignment length
