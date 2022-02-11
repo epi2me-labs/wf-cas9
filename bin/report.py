@@ -114,11 +114,11 @@ def make_coverage_summary_table(report: WFReport,
     for id_, table_file, stats, on_off in \
             zip(sample_ids, table_files, seq_stats, on_offs):
 
-        try:
+        try:  # I'n not sure we need this
             df = pd.read_csv(
                 table_file, sep='\t', names=[
                     'on target', 'off target'])
-        except pd.errors.EmptyDataError as e:
+        except pd.errors.EmptyDataError:
             continue
 
         df['all'] = df['on target'] + df['off target']
@@ -140,7 +140,6 @@ def make_coverage_summary_table(report: WFReport,
                 'read_id',
                 'target'])
 
-        # df_onoff['target'].fillna('OFF', inplace=True)
         df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
                               left_on='read_id', right_on='read_id')
 
@@ -159,6 +158,7 @@ def make_coverage_summary_table(report: WFReport,
 def make_target_summary_table(report: WFReport, sample_ids: List,
                               table_files: List[Path]):
     """Create a table of target summary statistics.
+
     TODO: missing mean accuracy column
     """
     section = report.add_section()
