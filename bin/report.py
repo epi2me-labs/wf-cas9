@@ -262,15 +262,20 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                                      'On-target'],
                               x_axis_label='Coverage',
                               y_axis_label='Proportion of reads (normalized'
-                              'by class size)')
+                              'by class size)',
+                              title=id_)
         plots.append(plot)
-    grid = gridplot(plots, ncols=2, width=400, height=300)
+    grid = gridplot(plots, ncols=3, width=360, height=300)
     section.plot(grid)
 
 
-def make_offtarget_hotspot_table(report: WFReport, sample_ids: List,
-                                 background: List[Path]):
+def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
+                                 background: List[Path],
+                                 nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
+
+    :param background: fill in
+    :param nreads_cutoff: threshold for inclusion in background hotspot table
 
     Using aplanat.report.FilterableTable to crate a column-searchable table.
     """
@@ -283,19 +288,14 @@ def make_offtarget_hotspot_table(report: WFReport, sample_ids: List,
             genome not within 1kb of a target region.
 
             An off-target hotspot is a off-target region with contiguous
-            overlapping reads. These hotspots may indicate genomic regions
-            that are
-            ''')
+            overlapping reads. These hotspots may indicate incorrectly-
+            performing primers. Only regions with {} reads or more are included
+            '''.format(nreads_cutoff))
     for (id_, bg) in zip(sample_ids, background):
         df = pd.read_csv(
-            bg,
-            sep='\t',
-            names=[
-                'chr',
-                'start',
-                'end',
-                'numReads'],
+            bg, sep='\t', names=['chr', 'start', 'end', 'numReads']
         )
+        df = df[df.numReads >= nreads_cutoff]
         df['hotspotLength'] = df.end - df.start
         df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
         df.sort_values('numReads', ascending=False, inplace=True)
