@@ -49,7 +49,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
     header = ["chr", "start", "end", 'name_f', "target", "coverage_f",
               'name_r', 'coverage_r']
     tabs = []
-    all_cov = []  # merge f + r coverage for use in other functions
+
     for (id_, t_cov) in zip(sample_ids, target_coverages):
         df = pd.read_csv(t_cov, names=header, sep='\t')
         dfg = df.groupby('target')
@@ -97,10 +97,8 @@ def plot_target_coverage(report: WFReport, sample_ids,
         # Extract target coverage
         cov = pd.DataFrame(df.coverage_f + df.coverage_r)
         cov.columns = ['coverage']
-        all_cov.append(cov)
     cover_panel = Tabs(tabs=tabs)
     section.plot(cover_panel)
-    return all_cov
 
 
 @timer_func
@@ -239,7 +237,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 @timer_func
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                              background: List[Path], target_coverage:
-                             List[pd.DataFrame]):
+                             List[Path]):
     """Coverage histograms.
 
     Show on-target and off-target (proximal removed) coverage
@@ -264,12 +262,20 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
             as there has been a depletion of non-target reads.
 
             ''')
-    header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
+
+    header_target = ["chr", "start", "end", 'name_f', "target", "coverage_f",
+              'name_r', 'coverage_r']
+    header_background = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
               'tileLen', 'fracTileAln']
 
     plots = []
-    for id_, bg, tc in zip(sample_ids, background, target_coverage):
-        df = pd.read_csv(bg, sep='\t', names=header)
+    for id_, bg, tc_ in zip(sample_ids, background, target_coverage):
+        df = pd.read_csv(bg, sep='\t', names=header_background)
+
+        dft = pd.read_csv(tc, names=header_target, sep='\t')
+        # Extract target coverage
+        tc = pd.DataFrame(dft.coverage_f + dft.coverage_r)
+        tc.columns = ['coverage']
 
         len_bg = len(df['#reads'].values)
         len_target = len(tc['coverage'])
@@ -401,11 +407,10 @@ def main():
 
     make_target_summary_table(report, args.sample_ids, args.target_summary)
 
-    target_coverage = plot_target_coverage(report, args.sample_ids,
-                                           args.target_coverage)
+    plot_target_coverage(report, args.sample_ids, args.target_coverage)
 
     plot_tiled_coverage_hist(report, args.sample_ids, args.background,
-                             target_coverage)
+                             args.target_coverage)
 
     make_offtarget_hotspot_table(report, args.sample_ids,
                                  args.off_target_hotspots)
