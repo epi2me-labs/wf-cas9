@@ -5,7 +5,7 @@ import argparse
 from pathlib import Path
 from typing import List
 
-from aplanat import hist, lines
+from aplanat import bars, hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
@@ -111,6 +111,7 @@ def make_coverage_summary_table(report: WFReport,
         bases.
         ''')
 
+    plots = []
     for id_, table_file, stats, on_off in \
             zip(sample_ids, table_files, seq_stats, on_offs):
 
@@ -133,12 +134,7 @@ def make_coverage_summary_table(report: WFReport,
         df_onoff = pd.read_csv(
             on_off,
             sep='\t',
-            names=[
-                'chr',
-                'start',
-                'end',
-                'read_id',
-                'target'])
+            names=['chr', 'start', 'end', 'read_id', 'target'])
 
         df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
                               left_on='read_id', right_on='read_id')
@@ -152,7 +148,15 @@ def make_coverage_summary_table(report: WFReport,
         df = df.astype('int')
 
         section.markdown(f"Sample id: {id_}")
-        section.table(df, searchable=False, paging=False, index=True)
+
+        bar = bars.simple_bar(
+            df1.columns.values.tolist() + df2.Name.values.tolist(),
+            df1.iloc[0].values.tolist() + df2.Value.values.tolist(),
+            title='{} - Pychopper stats'.format(id_),
+            colors=Colors.cerulean)
+
+
+        # section.table(df, searchable=False, paging=False, index=True)
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
