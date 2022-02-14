@@ -60,7 +60,8 @@ def plot_target_coverage(report: WFReport, sample_ids,
                 y_axis_label='',
                 colors=['#1A85FF', '#D41159'],
                 ylim=ylim,
-                height=200, width=300
+                height=200, width=300,
+                output_backend="svg"
             )
             p.xaxis.formatter.use_scientific = False
             p.xaxis.major_label_orientation = 3.14 / 6
@@ -99,7 +100,9 @@ def make_coverage_summary_table(report: WFReport,
     On target here means:
     >=1bp overlap with target and off target the rest. Do we need to change the
     definition here to exclude proximal hits from the off-targets as is done
-    later
+    later.
+
+    Merge the data from all samples into a single table.
 
     :param seq_stats:  the summary from fastcat
     """
@@ -110,24 +113,23 @@ def make_coverage_summary_table(report: WFReport,
         overlap with a target region and off target reads have 0 overlapping
         bases.
         ''')
-
-    plots = []
+    sample_frames = []
     for id_, table_file, stats, on_off in \
             zip(sample_ids, table_files, seq_stats, on_offs):
 
         try:  # I'n not sure we need this
             df = pd.read_csv(
                 table_file, sep='\t', names=[
-                    'on target', 'off target'])
+                    'on-target', 'off-target'])
         except pd.errors.EmptyDataError:
             continue
 
-        df['all'] = df['on target'] + df['off target']
+        df['all'] = df['on-target'] + df['off-target']
 
         df = df.T
-        df.columns = ['num_reads', 'kbases of sequence mapped']
-        df['kbases of sequence mapped'] = \
-            df['kbases of sequence mapped'] / 1000
+        df.columns = ['num_reads', 'kbases mapped']
+        df['kbases mapped'] = \
+            df['kbases mapped'] / 1000
 
         df_stats = pd.read_csv(stats, sep='\t')
 
@@ -147,16 +149,14 @@ def make_coverage_summary_table(report: WFReport,
         df.fillna(0, inplace=True)
         df = df.astype('int')
 
-        section.markdown(f"Sample id: {id_}")
+        # Melt the dataframe into a single row
+        dfu = df.unstack().to_frame().sort_index(level=1).T
+        dfu.insert(0, 'Sample_id', id_)
+        sample_frames.append(dfu)
 
-        bar = bars.simple_bar(
-            df1.columns.values.tolist() + df2.Name.values.tolist(),
-            df1.iloc[0].values.tolist() + df2.Value.values.tolist(),
-            title='{} - Pychopper stats'.format(id_),
-            colors=Colors.cerulean)
-
-
-        # section.table(df, searchable=False, paging=False, index=True)
+    section.markdown(f"something")
+    df_all_samples = pd.concat(sample_frames)
+    section.table(df_all_samples, searchable=False, paging=False, index=True)
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
@@ -239,9 +239,9 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
             to the left, this noise being expected when many regions in the
             genome have a single read mapping.
 
-            The target histogram should be skewed towards the right
-            if targeted sequencing approach has enriched for reads at target
-            regions.
+            If the targeted sequencing approach has performed well,
+            the target histogram should be skewed towards the right
+            as there has been a depletion of non-target reads.
 
             ''')
     header = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
@@ -267,7 +267,9 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                               x_axis_label='Coverage',
                               y_axis_label='Proportion of reads (normalized'
                               'by class size)',
-                              title=id_)
+                              title=id_,
+                              output_backend="svg"
+                              )
         plots.append(plot)
     grid = gridplot(plots, ncols=3, width=360, height=300)
     section.plot(grid)
