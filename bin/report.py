@@ -4,6 +4,7 @@
 import argparse
 from pathlib import Path
 from typing import List
+from time import time
 
 from aplanat import bars, hist, lines
 from aplanat.components import fastcat
@@ -15,6 +16,19 @@ from natsort import natsort_keygen, natsorted
 import pandas as pd
 
 
+def timer_func(func):
+    # This function shows the execution time of
+    # the function object passed
+    def wrap_func(*args, **kwargs):
+        t1 = time()
+        result = func(*args, **kwargs)
+        t2 = time()
+        print(f'Function {func.__name__!r} executed in {(t2-t1):.4f}s')
+        return result
+    return wrap_func
+
+
+@timer_func
 def plot_target_coverage(report: WFReport, sample_ids,
                          target_coverages: List[Path]):
     """Make coverage plots of each target.
@@ -89,6 +103,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
     return all_cov
 
 
+@timer_func
 def make_coverage_summary_table(report: WFReport,
                                 sample_ids: List,
                                 table_files: List[Path],
@@ -151,14 +166,19 @@ def make_coverage_summary_table(report: WFReport,
 
         # Melt the dataframe into a single row
         dfu = df.unstack().to_frame().sort_index(level=1).T
-        dfu.insert(0, 'Sample_id', id_)
+        dfu.insert(0, 'sample', id_)
         sample_frames.append(dfu)
 
     section.markdown(f"something")
     df_all_samples = pd.concat(sample_frames)
-    section.table(df_all_samples, searchable=False, paging=False, index=True)
+    df.sort_values(
+        by=["chr"],
+        key=natsort_keygen(),
+        inplace=True
+    )
+    section.table(df_all_samples, searchable=False, paging=False, index=False)
 
-
+@timer_func
 def make_target_summary_table(report: WFReport, sample_ids: List,
                               table_files: List[Path]):
     """Create a table of target summary statistics.
@@ -216,7 +236,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         section.markdown(f"Sample id: {id_}")
         section.table(df, searchable=False, paging=False)
 
-
+@timer_func
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                              background: List[Path], target_coverage:
                              List[pd.DataFrame]):
@@ -274,7 +294,7 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     grid = gridplot(plots, ncols=3, width=360, height=300)
     section.plot(grid)
 
-
+@timer_func
 def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
                                  background: List[Path],
                                  nreads_cutoff=10):
