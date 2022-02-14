@@ -142,6 +142,12 @@ process target_coverage {
         tuple val(sample_id), path('*_target_cov.bed'), emit: target_coverage
 
     script:
+    // Skip generating plot data if not in debug mode
+    if (!params.debug_mode){
+    """
+    touch "${sample_id}_empty_target_cov.bed"
+    """
+    } else{
     """
     # Get alignment coverage at tiles per strand
 
@@ -170,6 +176,7 @@ process target_coverage {
 
     rm pos.bed neg.bed
     """
+    }
 }
 
 process target_summary {
@@ -283,6 +290,12 @@ process background {
         tuple val(sample_id), path('*_tiles_background_cov.bed'), emit: table
         tuple val(sample_id), path('*off_target_hotspots.bed'), emit: hotspots
     script:
+    if (!params.debug_mode){
+    """
+    touch ${sample_id}_tiles_background_cov.bed
+    touch ${sample_id}_off_target_hotspots.bed
+    """
+    } else{
     """
     # Slop = padding of targets
     bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
@@ -294,8 +307,8 @@ process background {
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
     bedtools merge -i - | bedtools coverage -a - -b $aln | \
     cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
-
     """
+    }
 }
 
 
@@ -333,18 +346,25 @@ process makeReport {
         report_name = "wf-cas9-" + params.report_name + '.html'
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
+        if (params.debug_mode){
+            debug_data = """--target_coverage $target_coverage \
+                            --background $background \
+                            --off_target_hotspots $off_target_hotspots
+                         """
+        }else{
+            debug_data = ""
+        }
+        print(params.debug_mode)
     """
     report.py $report_name \
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \
-        --target_coverage $target_coverage \
         --target_summary $target_summary_table \
         --sample_ids $sids \
-        --background $background \
-        --off_target_hotspots $off_target_hotspots \
         --coverage_summary $coverage_summary \
-        --on_off $on_off
+        --on_off $on_off \
+        $debug_data
     """
 }
 
@@ -387,13 +407,20 @@ workflow pipeline {
         make_tiles(build_index.out.chrom_sizes,
             targets)
 
-        target_coverage(targets,
+        coverage_summary(targets,
+            align_reads.out.bed)
+
+       get_on_target_reads(summariseReads.out.reads
+            .join(coverage_summary.out.on))
+
+        target_summary(targets,
             make_tiles.out.tiles,
             make_tiles.out.tiles_inter_targets,
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
-        target_summary(targets,
+        // No output in debug mode
+        target_coverage(targets,
             make_tiles.out.tiles,
             make_tiles.out.tiles_inter_targets,
             build_index.out.chrom_sizes,
@@ -404,11 +431,6 @@ workflow pipeline {
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
-        coverage_summary(targets,
-            align_reads.out.bed)
-
-        get_on_target_reads(summariseReads.out.reads
-            .join(coverage_summary.out.on))
 
         report = makeReport(software_versions,
                     workflow_params,

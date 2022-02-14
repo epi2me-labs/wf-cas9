@@ -169,8 +169,9 @@ def make_coverage_summary_table(report: WFReport,
 
     section.markdown(f"something")
     df_all_samples = pd.concat(sample_frames)
-    df.sort_values(
-        by=["chr"],
+    print(df_all_samples.head())
+    df_all_samples.sort_values(
+        by=["sample"],
         key=natsort_keygen(),
         inplace=True
     )
@@ -272,7 +273,7 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     for id_, bg, tc_ in zip(sample_ids, background, target_coverage):
         df = pd.read_csv(bg, sep='\t', names=header_background)
 
-        dft = pd.read_csv(tc, names=header_target, sep='\t')
+        dft = pd.read_csv(tc_, names=header_target, sep='\t')
         # Extract target coverage
         tc = pd.DataFrame(dft.coverage_f + dft.coverage_r)
         tc.columns = ['coverage']
@@ -361,17 +362,17 @@ def main():
         "--coverage_summary", required=True, nargs='+', type=Path,
         help="Contigency table coverage summary csv")
     parser.add_argument(
-        "--target_coverage", required=True, nargs='+', type=Path,
-        help="Tiled coverage for each target")
+        "--target_coverage", required=False, default=None,
+        nargs='+', type=Path, help="Tiled coverage for each target")
     parser.add_argument(
         "--target_summary", required=True, nargs='+', type=Path,
         help="Summary stats for each target. CSV.")
     parser.add_argument(
-        "--background", required=True, nargs='+', type=Path,
+        "--background", required=False, default=None, nargs='+', type=Path,
         help="Tiled background coverage")
     parser.add_argument(
-        "--off_target_hotspots", required=True, nargs='+', type=Path,
-        help="Tiled background coverage")
+        "--off_target_hotspots", required=False, default=None, nargs='+',
+        type=Path, help="Tiled background coverage")
     parser.add_argument(
         "--on_off", required=True, nargs='+', type=Path,
         help="Bed file. 5th column containing target or empty for off-target")
@@ -407,12 +408,14 @@ def main():
 
     make_target_summary_table(report, args.sample_ids, args.target_summary)
 
-    plot_target_coverage(report, args.sample_ids, args.target_coverage)
+    if args.target_coverage:
+        plot_target_coverage(report, args.sample_ids, args.target_coverage)
 
-    plot_tiled_coverage_hist(report, args.sample_ids, args.background,
-                             args.target_coverage)
-
-    make_offtarget_hotspot_table(report, args.sample_ids,
+    if args.background and args.target_coverage:
+        plot_tiled_coverage_hist(report, args.sample_ids, args.background,
+                                 args.target_coverage)
+    if args.off_target_hotspots:
+        make_offtarget_hotspot_table(report, args.sample_ids,
                                  args.off_target_hotspots)
 
     report.add_section(

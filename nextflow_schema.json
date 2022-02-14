@@ -49,6 +49,10 @@
                     "type": "string",
                     "format": "file-path",
                     "description": "A bed file of Cas9 target regions"
+                },
+                "debug_mode": {
+                    "type": "boolean",
+                    "description": "Debug mode provides additional per-sample plotting of target and background coverage. Not recommended when using large sample or target numbers "
                 }
             },
             "required": [
