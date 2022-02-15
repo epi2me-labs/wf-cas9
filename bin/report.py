@@ -163,7 +163,7 @@ def make_coverage_summary_table(report: WFReport,
     # Sort the multiindex columns
     df_all_samples = df_all_samples.T.sort_index(ascending=False).T
 
-    section.table(df_all_samples, searchable=True, paging=False, index=False)
+    section.table(df_all_samples, searchable=True, paging=True, index=False)
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
@@ -175,7 +175,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
     section = report.add_section()
     section.markdown('''
         <br>
-        ### Targeted region summary
+        ### Target regions summary
 
         This table provides a summary of all the target region detailing:
 
@@ -391,7 +391,7 @@ def main():
     # Add reads summary section
     section = report.add_section()
     section.markdown("### Read stats")
-    for id_, summ in zip(args.sample_ids, args.summaries):
+    for id_, summ in sorted(zip(args.sample_ids, args.summaries)):
         report.add_section(
             section=fastcat.full_report(
                 [summ],

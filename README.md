@@ -26,7 +26,7 @@ To obtain the workflow, having installed `nextflow`, users can run the following
 nextflow run epi2me-labs/wf-template --help
 ```
 
-To test on a small dataset with two target on two chromosomes:
+To test on a small dataset with two targets and two chromosomes:
 ```shell
 cd wf-cas9
 nextflow run . --fastq test_data/fastq/ --ref_genome \
