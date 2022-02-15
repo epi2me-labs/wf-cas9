@@ -155,12 +155,14 @@ def make_coverage_summary_table(report: WFReport,
         sample_frames.append(dfu)
 
     df_all_samples = pd.concat(sample_frames)
-    print(df_all_samples.head())
+
     df_all_samples.sort_values(
         by=["sample"],
         key=natsort_keygen(),
-        inplace=True
-    )
+        inplace=True)
+    # Sort the multiindex columns
+    df_all_samples = df_all_samples.T.sort_index(ascending=False).T
+
     section.table(df_all_samples, searchable=True, paging=False, index=False)
 
 
