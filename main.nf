@@ -443,9 +443,11 @@ workflow pipeline {
                     .join(coverage_summary.out.on_off)
                     .toList().transpose().toList())
 
-        results = get_on_target_reads.out
-            .map {it -> it[1]}  // remove sample ids from tuple
-            .concat(makeReport.out.report)
+        results = summariseReads.out.stats
+             .concat(get_on_target_reads.out)
+             .map {it -> it[1]}
+             .concat(makeReport.out.report)
+
     emit:
         results
         telemetry = workflow_params
