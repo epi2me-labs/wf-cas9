@@ -208,19 +208,16 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
               'targetLen', 'fracTargAln', 'meanAlnlen', 'kbases',
               'medianCov', 'p', 'n']
 
+    frames = []
     for (id_, table_file) in zip(sample_ids, table_files):
         df = pd.read_csv(table_file, sep='\t', names=header)
         df.kbases = df.kbases / 1000
-        # This bodges a problem with main.nf:target_summary
+        # This bodges a problem with main.nf:target_summary producing
+        # duplicated rows
         df.dropna(inplace=True)
 
         df['strandBias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
-        df.sort_values(
-            by=["chr", "start"],
-            key=natsort_keygen(),
-            inplace=True
-        )
         df = df.astype({
             'start': int,
             'end': int,
@@ -231,9 +228,16 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             'kbases': int
         })
         df = df.round({'strandBias': 2})
+        df.insert(0, 'sample', id_)
+        frames.append(df)
 
-        section.markdown(f"Sample id: {id_}")
-        section.table(df, searchable=False, paging=False)
+    df_all = pd.concat(frames)
+    df_all.sort_values(
+        by=["sample", "chr", "start"],
+        key=natsort_keygen(),
+        inplace=True)
+    
+    section.table(df_all, searchable=True, paging=True)
 
 @timer_func
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
