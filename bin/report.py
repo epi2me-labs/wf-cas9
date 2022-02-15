@@ -16,19 +16,6 @@ from natsort import natsort_keygen, natsorted
 import pandas as pd
 
 
-def timer_func(func):
-    # This function shows the execution time of
-    # the function object passed
-    def wrap_func(*args, **kwargs):
-        t1 = time()
-        result = func(*args, **kwargs)
-        t2 = time()
-        print(f'Function {func.__name__!r} executed in {(t2-t1):.4f}s')
-        return result
-    return wrap_func
-
-
-@timer_func
 def plot_target_coverage(report: WFReport, sample_ids,
                          target_coverages: List[Path]):
     """Make coverage plots of each target.
@@ -101,7 +88,6 @@ def plot_target_coverage(report: WFReport, sample_ids,
     section.plot(cover_panel)
 
 
-@timer_func
 def make_coverage_summary_table(report: WFReport,
                                 sample_ids: List,
                                 table_files: List[Path],
@@ -153,6 +139,7 @@ def make_coverage_summary_table(report: WFReport,
 
         df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
                               left_on='read_id', right_on='read_id')
+        df_m['target'] = df_m['target'].fillna('OFF')
 
         mean_read_len = [df_m[df_m.target != 'OFF'].read_length.mean(),
                          df_m[df_m.target == 'OFF'].read_length.mean(),
@@ -167,7 +154,6 @@ def make_coverage_summary_table(report: WFReport,
         dfu.insert(0, 'sample', id_)
         sample_frames.append(dfu)
 
-    section.markdown(f"something")
     df_all_samples = pd.concat(sample_frames)
     print(df_all_samples.head())
     df_all_samples.sort_values(
@@ -175,9 +161,9 @@ def make_coverage_summary_table(report: WFReport,
         key=natsort_keygen(),
         inplace=True
     )
-    section.table(df_all_samples, searchable=False, paging=False, index=False)
+    section.table(df_all_samples, searchable=True, paging=False, index=False)
 
-@timer_func
+
 def make_target_summary_table(report: WFReport, sample_ids: List,
                               table_files: List[Path]):
     """Create a table of target summary statistics.
@@ -218,28 +204,29 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
         df['strandBias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
-        df = df.astype({
-            'start': int,
-            'end': int,
-            '#reads': int,
-            '#basesCov': int,
-            'targetLen': int,
-            'meanAlnlen': int,
-            'kbases': int
-        })
-        df = df.round({'strandBias': 2})
         df.insert(0, 'sample', id_)
         frames.append(df)
 
     df_all = pd.concat(frames)
+    df_all = df_all.astype({
+        'start': int,
+        'end': int,
+        '#reads': int,
+        '#basesCov': int,
+        'targetLen': int,
+        'meanAlnlen': int,
+        'kbases': int
+    })
+    df_all = df_all.round({'strandBias': 2,
+                           'fracTargAln': 2})
     df_all.sort_values(
         by=["sample", "chr", "start"],
         key=natsort_keygen(),
         inplace=True)
-    
+
     section.table(df_all, searchable=True, paging=True)
 
-@timer_func
+
 def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                              background: List[Path], target_coverage:
                              List[Path]):
@@ -305,7 +292,7 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     grid = gridplot(plots, ncols=3, width=360, height=300)
     section.plot(grid)
 
-@timer_func
+
 def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
                                  background: List[Path],
                                  nreads_cutoff=10):
@@ -400,11 +387,13 @@ def main():
     ''')
 
     # Add reads summary section
+    section = report.add_section()
+    section.markdown("### Read stats")
     for id_, summ in zip(args.sample_ids, args.summaries):
         report.add_section(
             section=fastcat.full_report(
                 [summ],
-                header='#### Read stats: {}'.format(id_)
+                header="{}".format(id_)
             ))
 
     make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
