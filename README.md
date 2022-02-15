@@ -1,7 +1,7 @@
 # Workflow template
 
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
-for the multiplexed analysis Cas9 targeted sequencing.
+for the multiplexed analysis of Cas9-targeted sequencing. 
 
 ## Quickstart
 
@@ -20,26 +20,47 @@ For more information on running EPI2ME Labs workflows [visit out website](https:
 
 **Workflow options**
 
-To obtain the workflow, having installed `nextflow`, users can run:
+To obtain the workflow, having installed `nextflow`, users can run the following to see the options for the workflow.:
 
 ```
 nextflow run epi2me-labs/wf-template --help
 ```
 
-to see the options for the workflow.
+To test on a small dataset with two target on two chromosomes:
+```shell
+cd wf-cas9
+nextflow run . --fastq test_data/fastq/ --ref_genome \
+test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed \
+-profile conda -resume
+```
 
+To evaluate on a larger dataset, use the evaluation script:
+``` 
+evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
+```
 **Workflow outputs**
 
 The primary outputs of the workflow include:
 
-* a simple text file providing a summary of sequencing reads,
-* an HTML report document detailing the primary findings of the workflow.
+* a per-sample on-target reads fastq file. 
+* a per-sample simple text file providing a summary of sequencing reads.
+* a combined HTML report document detailing the primary findings of the workflow across all samples.
+
+By default, the report contains sequencing quality plots and two tables that summarize targeted sequencing results:
+* on/off-target reads per sample.
+* summaries of each sample/target pair. 
+
+Using the `--debug_mode`, the report will also contain the following elements that may be useful for 
+diagnosing issues with the experiment. These are turned off by default as they can lead to slow loading of the 
+html report:
+* plots of stranded coverage at each target.
+* histograms of on and off-target coverage for each sample.
+* off-target hotspot region tables.
 
 
-To run this workflow on an evaluation dataset use 
-``` 
-evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
-```
+
+
+
 
 ## Useful links
 
