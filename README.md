@@ -26,6 +26,17 @@ To obtain the workflow, having installed `nextflow`, users can run the following
 nextflow run epi2me-labs/wf-template --help
 ```
 
+
+### Workflow inputs:
+* folder of fastq reads.
+* genome reference file.
+* target bed file with 4 columns:
+  * chromosome
+  * start
+  * end
+  * target_name
+ 
+
 To test on a small dataset with two targets and two chromosomes:
 ```shell
 cd wf-cas9
