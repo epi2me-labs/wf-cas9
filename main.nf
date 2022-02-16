@@ -393,7 +393,6 @@ workflow pipeline {
         ref_genome
         targets
     main:
-        println(reads)
         build_index(ref_genome)
         summariseReads(reads)
         software_versions = getVersions()
@@ -467,6 +466,12 @@ workflow {
     targets = file(params.targets, type: "file")
     if (!targets.exists()) {
         println("--targets: File doesn't exist, check path.")
+        exit 1
+    }
+    def line
+    targets.withReader { line = it.readLine() }
+    if (line.split("\t").size() != 4){
+        println('Target file should have 4 cols: chr start end target_name')
         exit 1
     }
 
