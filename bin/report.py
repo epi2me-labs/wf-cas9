@@ -25,7 +25,6 @@ def plot_target_coverage(report: WFReport, sample_ids,
     """
     section = report.add_section()
     section.markdown('''
-    <br><br>
     ### Target coverage
 
     Each of the following plots show the amount of coverage, per strand
@@ -172,7 +171,6 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
     """
     section = report.add_section()
     section.markdown('''
-        <br>
         ### Target regions summary
 
         This table provides a summary of all the target region detailing:
@@ -266,7 +264,6 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     """
     section = report.add_section()
     section.markdown('''
-            <br>
             ### Coverage distribution
 
             This histogram(s) show the coverage distribution of on-target and
@@ -333,7 +330,6 @@ def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
     """
     section = report.add_section()
     section.markdown('''
-            <br>
             ### Off-target hotspots
 
             Off target regions are again defined here as all regions of the
