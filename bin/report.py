@@ -60,8 +60,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
                 y_axis_label='',
                 colors=['#1A85FF', '#D41159'],
                 ylim=ylim,
-                height=200, width=300,
-                output_backend="svg"
+                height=200, width=300
             )
             p.xaxis.formatter.use_scientific = False
             p.xaxis.major_label_orientation = 3.14 / 6
@@ -315,8 +314,7 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
                               x_axis_label='Coverage',
                               y_axis_label='Proportion of reads (normalized'
                               'by class size)',
-                              title=id_,
-                              output_backend="svg"
+                              title=id_
                               )
         plots.append(plot)
     grid = gridplot(plots, ncols=3, width=360, height=300)
