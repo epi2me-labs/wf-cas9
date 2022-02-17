@@ -180,6 +180,22 @@ process target_coverage {
 }
 
 process target_summary {
+    /*
+    Make a target summary bed file with a row per target. Columns:
+        chr,
+        start,
+        end,
+        target,
+        number of reads,
+        num bases covered,
+        target length,
+        fracTargAln,
+        medianCov,
+        num positive
+        strand reads,
+        num negative,
+        strand reads
+    */
     label "cas9"
     input:
         path targets
@@ -195,57 +211,30 @@ process target_summary {
     # Map targets to aln.
     # If the output is empty, there are no reads intersecting targets. In this case output an empty table file
     cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
-    if [[ ! -s aln_targets.bed ]];
-      then
-        echo "No target overlaps found for ${sample_id}"
-        touch ${sample_id}_target_summary.bed
-        exit 0
-    fi
 
     # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
-    # This orms first few columns of output table
-    bedtools coverage -a $targets -b $aln | bedtools sort > target_summary_temp.bed
+    # This forms first few columns of output table
+    bedtools coverage -a $targets -b $aln > target_summary_temp.bed
 
     # Get alignment coverage at tiles per strand
     cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
 
     # Get median coverage (col 9) by target (col 8)
-    # bedtools sort breaks here for reasons unknown, so is not done.
 
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Strand bias
-    if grep -q "\\W+\\W" aln_targets.bed
-        then
-            cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -a - -b $targets -wb | \
-            bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
-    else
-        touch pos.bed
-    fi
 
-    if grep -q "\\W-\\W" aln_targets.bed
-        then
-            cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -a - -b $targets -wb | \
-            bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > neg.bed
-    else
-        touch neg.bed
-    fi
+    cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a $targets | cut -f 5  > pos.bed  || true
 
-    # Mean read len
-    # Actually this is mean alignment length
-    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
-
-    # bases of coverage
-    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > bases.bed
+    cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
 
     paste target_summary_temp.bed \
-      mean_read_len.bed \
-      bases.bed \
       median_coverage.bed \
       pos.bed \
       neg.bed > ${sample_id}_target_summary.bed
 
-    #rm mean_read_len.bed kbases.bed median_coverage.bed pos.bed neg.bed
+    #rm median_coverage.bed pos.bed neg.bed
     """
 }
 

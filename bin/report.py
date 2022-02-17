@@ -116,7 +116,7 @@ def make_coverage_summary_table(report: WFReport,
     for id_, table_file, stats, on_off in \
             zip(sample_ids, table_files, seq_stats, on_offs):
 
-        try:  # I'n not sure we need this
+        try:
             df = pd.read_csv(
                 table_file, sep='\t', names=[
                     'on-target', 'off-target'])
@@ -127,8 +127,7 @@ def make_coverage_summary_table(report: WFReport,
 
         df = df.T
         df.columns = ['num_reads', 'kbases mapped']
-        df['kbases mapped'] = \
-            df['kbases mapped'] / 1000
+        df['kbases mapped'] = df['kbases mapped'] / 1000
 
         df_stats = pd.read_csv(stats, sep='\t')
 
@@ -167,7 +166,8 @@ def make_coverage_summary_table(report: WFReport,
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
-                              table_files: List[Path]):
+                              table_files: List[Path],
+                              seq_stats, on_off_bed):
     """Create a table of target summary statistics.
 
     TODO: missing mean accuracy column
@@ -179,52 +179,81 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
         This table provides a summary of all the target region detailing:
 
-        * chr, start, end: the location of the target region
-        * \\#reads: number of reads mapped to target region
-        * \\#basesCov: number of bases in target with at least 1x coverage
-        * targetLen: length of target region
-        * fracTargAln: proportion of the target with at least 1x coverage
-        * meanAlnlen: mean length alignment of alignment
+        * chr, start, end: the location of the target region.
+        * \\#reads: number of reads mapped to target region.
+        * \\#basesCov: number of bases in target with at least 1x coverage.
+        * targetLen: length of target region.
+        * fracTargAln: proportion of the target with at least 1x coverage.
+        * medianCov: median coverage of 100 bp bins.
+        * meanReadlen: mean read length of reads mapping to target.
         * strandBias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the foward or
             reverse strand respectively.
-        * kbases: kbases of total reads mapped to target
+        * kbases: kbases of total reads mapped to target.
         ''')
 
     # Note meanAlnLen: needs to be switched to meanreadLen in next version
     header = ['chr', 'start', 'end', 'target', '#reads', '#basesCov',
-              'targetLen', 'fracTargAln', 'meanAlnlen', 'kbases',
-              'medianCov', 'p', 'n']
+              'targetLen', 'fracTargAln', 'medianCov', 'p', 'n']
 
     frames = []
-    for (id_, table_file) in zip(sample_ids, table_files):
-        df = pd.read_csv(table_file, sep='\t', names=header)
-        df.kbases = df.kbases / 1000
+    for (id_, table_file, stats, on_off) in \
+            zip(sample_ids, table_files, seq_stats, on_off_bed):
+        df = pd.read_csv(table_file, sep='\t', names=header, index_col=False)
+        if len(df) == 0:
+            continue
         # This bodges a problem with main.nf:target_summary producing
         # duplicated rows
-        df.dropna(inplace=True)
+        df.fillna(0, inplace=True)
+
+        df_onoff = pd.read_csv(
+            on_off,
+            sep='\t',
+            names=['chr', 'start', 'end', 'read_id', 'target'])
+
+        df_stats = pd.read_csv(stats, sep='\t')
+        df_on_off = df_onoff.merge(df_stats[['read_id', 'read_length']],
+                              left_on='read_id', right_on='read_id')
+
+        read_len = df_on_off.groupby(['target']).mean()[['read_length']]
+        read_len.columns = ['meanReadLen']
+        if len(read_len) > 0:
+            df = df.merge(read_len, left_on='target', right_index=True)
+        else:
+            df['meanReadLen'] = 0
+
+        kbases = df_on_off.groupby(['target']).sum()[['read_length']] / 1000
+        kbases.columns = ['kbases']
+        if len(kbases) > 0:
+            df = df.merge(kbases, left_on='target', right_index=True)
+        else:
+            df['kbases'] = 0
 
         df['strandBias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
         df.insert(0, 'sample', id_)
         frames.append(df)
 
-    df_all = pd.concat(frames)
-    df_all = df_all.astype({
-        'start': int,
-        'end': int,
-        '#reads': int,
-        '#basesCov': int,
-        'targetLen': int,
-        'meanAlnlen': int,
-        'kbases': int
-    })
-    df_all = df_all.round({'strandBias': 2,
-                           'fracTargAln': 2})
-    df_all.sort_values(
-        by=["sample", "chr", "start"],
-        key=natsort_keygen(),
-        inplace=True)
+    if len(frames) > 0:
+        df_all = pd.concat(frames)
+        df_all = df_all.astype({
+            'start': int,
+            'end': int,
+            '#reads': int,
+            '#basesCov': int,
+            'targetLen': int
+        })
+
+        df_all = df_all.round({'strandBias': 2,
+                               'fracTargAln': 2,
+                               'kbases': 2,
+                               'meanReadLen': 1})
+        df_all.sort_values(
+            by=["sample", "chr", "start"],
+            key=natsort_keygen(),
+            inplace=True)
+    else:
+        df_all = pd.DataFrame()
 
     section.table(df_all, searchable=True, paging=True)
 
@@ -401,7 +430,8 @@ def main():
     make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
                                 args.summaries, args.on_off)
 
-    make_target_summary_table(report, args.sample_ids, args.target_summary)
+    make_target_summary_table(report, args.sample_ids, args.target_summary,
+                              args.summaries, args.on_off)
 
     if args.target_coverage:
         plot_target_coverage(report, args.sample_ids, args.target_coverage)
