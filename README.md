@@ -63,7 +63,7 @@ By default, the report contains sequencing quality plots and two tables that sum
 
 Using the `--debug_mode`, the report will also contain the following elements that may be useful for 
 diagnosing issues with the experiment. These are turned off by default as they can lead to slow loading of the 
-html report:
+HTML report:
 * plots of stranded coverage at each target.
 * histograms of on and off-target coverage for each sample.
 * off-target hotspot region tables.
