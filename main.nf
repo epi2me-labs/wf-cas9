@@ -418,26 +418,35 @@ workflow pipeline {
             align_reads.out.bed)
 
         // No output in debug mode
+        if (!params.debug_mode){
+            target_coverage(targets,
+                make_tiles.out.tiles,
+                make_tiles.out.tiles_inter_targets,
+                build_index.out.chrom_sizes,
+                align_reads.out.bed)
 
-        target_coverage(targets,
-            make_tiles.out.tiles,
-            make_tiles.out.tiles_inter_targets,
-            build_index.out.chrom_sizes,
-            align_reads.out.bed)
-        tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage')
+            background(targets,
+                make_tiles.out.tiles,
+                build_index.out.chrom_sizes,
+                align_reads.out.bed)
 
-        background(targets,
-            make_tiles.out.tiles,
-            build_index.out.chrom_sizes,
-            align_reads.out.bed)
+            tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage')
+            bg_cov = background.out.table.collectFile(name: 'background')
+            bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
+
+        }else {
+            tar_cov_tsv = file("$projectDir/data/OPTIONAL_FILE")
+            bg_cov = file("$projectDir/data/OPTIONAL_FILE1")
+            bg_hotspots = file("$projectDir/data/OPTIONAL_FILE2")
+        }
 
         report = makeReport(software_versions,
                     workflow_params,
                     summariseReads.out.stats.toList().transpose().toList(),
                     tar_cov_tsv,
                     target_summary.out.table.collectFile(name: 'target_summary'),
-                    background.out.table.collectFile(name: 'background'),
-                    background.out.hotspots.collectFile(name: 'hotspots'),
+                    bg_cov,
+                    bg_hotspots,
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
                     coverage_summary.out.on_off.collectFile(name: 'on_off'),
                     )
