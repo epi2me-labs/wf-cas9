@@ -20,12 +20,12 @@ For more information on running EPI2ME Labs workflows [visit out website](https:
 
 **Workflow options**
 
-To obtain the workflow, having installed `nextflow`, users can run the following to see the options for the workflow.:
+To obtain the workflow, having installed `nextflow`, users can run:
 
 ```
 nextflow run epi2me-labs/wf-template --help
 ```
-
+to see the options for the workflow.
 
 ### Workflow inputs:
 * folder of fastq reads.
