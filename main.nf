@@ -311,7 +311,7 @@ process background {
     sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp1
     mv tmp1 ${sample_id}_tiles_background_cov.bed
 
-    sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp2
+    sed "s/\$/\t${sample_id}/" ${sample_id}_off_target_hotspots.bed > tmp2
     mv tmp2 ${sample_id}_off_target_hotspots.bed
     """
 }
@@ -418,32 +418,23 @@ workflow pipeline {
             align_reads.out.bed)
 
         // No output in debug mode
+
         target_coverage(targets,
             make_tiles.out.tiles,
             make_tiles.out.tiles_inter_targets,
             build_index.out.chrom_sizes,
             align_reads.out.bed)
+        tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage')
 
         background(targets,
             make_tiles.out.tiles,
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
-
-//         report = makeReport(software_versions,
-//                     workflow_params,
-//                     summariseReads.out.stats
-//                     .join(target_coverage.out.target_coverage)
-//                     .join(target_summary.out.table)
-//                     .join(background.out.table)
-//                     .join(background.out.hotspots)
-//                     .join(coverage_summary.out.summary)
-//                     .join(coverage_summary.out.on_off)
-//                     .toList().transpose().toList())
         report = makeReport(software_versions,
                     workflow_params,
                     summariseReads.out.stats.toList().transpose().toList(),
-                    target_coverage.out.target_coverage.collectFile(name: 'target_coverage'),
+                    tar_cov_tsv,
                     target_summary.out.table.collectFile(name: 'target_summary'),
                     background.out.table.collectFile(name: 'background'),
                     background.out.hotspots.collectFile(name: 'hotspots'),
@@ -455,7 +446,6 @@ workflow pipeline {
              .concat(summariseReads.out.stats)
              .map {it -> it[1]} // Remove sample id from tuples
              .concat(makeReport.out.report)
-
 
     emit:
         results
