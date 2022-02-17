@@ -154,21 +154,21 @@ process target_coverage {
     if grep -q "\\W+" $aln
       then
         cat $aln | grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 1,2,3,8,9 > pos.bed
+            cut -f 1,2,3,8,9 > pos.bed
       else
         echo "_\t0\t1\ttest_id\t0\t+" > p.bed
         cat p.bed| grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 1,2,3,8,9 > pos.bed
+            cut -f 1,2,3,8,9 > pos.bed
     fi
 
     if grep -q "\\W-" $aln
       then
         cat $aln | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 9 > neg.bed
+            cut -f 9 > neg.bed
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
         cat n.bed | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 9 > neg.bed
+            cut -f 9 > neg.bed
     fi
 
     # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
@@ -230,11 +230,11 @@ process target_summary {
     cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
 
     paste target_summary_temp.bed \
-      median_coverage.bed \
-      pos.bed \
-      neg.bed > ${sample_id}_target_summary.bed
+        median_coverage.bed \
+        pos.bed \
+        neg.bed > ${sample_id}_target_summary.bed
 
-    #rm median_coverage.bed pos.bed neg.bed
+    rm median_coverage.bed pos.bed neg.bed
     """
 }
 
@@ -251,7 +251,7 @@ process coverage_summary {
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
-    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 |
+    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 | \
      awk -F '\\t' -v OFS='\\t' '{ \$(NF+1) = OFF; print }'  > off.bed
     bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > on.bed
 
@@ -287,15 +287,15 @@ process background {
     } else{
     """
     # Slop = padding of targets
-    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
     # remove reads that overlap slopped targets
-    bedtools intersect -v -a $aln -b - -wa | \
-    bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
+    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
+        bedtools intersect -v -a $aln -b - -wa | \
+        bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
 
     # Get all contiguous regions of background alignments
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
-    bedtools merge -i - | bedtools coverage -a - -b $aln | \
-    cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+        bedtools merge -i - | bedtools coverage -a - -b $aln | \
+        cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
     """
     }
 }
