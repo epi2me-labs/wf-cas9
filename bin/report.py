@@ -31,8 +31,7 @@ def plot_target_coverage(report: WFReport, sample_ids,
     in discretized bins of 100 bp.
     ''')
 
-    header = ["chr", "start", "end", 'name_f', "target", "coverage_f",
-              'name_r', 'coverage_r']
+    header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r']
     tabs = []
 
     for (id_, t_cov) in zip(sample_ids, target_coverages):
@@ -278,8 +277,8 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
 
             ''')
 
-    header_target = ["chr", "start", "end", 'name_f', "target", "coverage_f",
-                     'name_r', 'coverage_r']
+    header_target = ["chr", "start", "end", "target", "coverage_f",
+                     'coverage_r']
     header_background = ['chr', 'start', 'end', 'tile_name', '#reads',
                          '#bases_cov', 'tileLen', 'fracTileAln']
 

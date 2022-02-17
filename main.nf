@@ -154,21 +154,21 @@ process target_coverage {
     if grep -q "\\W+" $aln
       then
         cat $aln | grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 1,2,3,4,8,9 > pos.bed
+        cut -f 1,2,3,8,9 > pos.bed
       else
         echo "_\t0\t1\ttest_id\t0\t+" > p.bed
         cat p.bed| grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 1,2,3,4,8,9 > pos.bed
+        cut -f 1,2,3,8,9 > pos.bed
     fi
 
     if grep -q "\\W-" $aln
       then
         cat $aln | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 4,9 > neg.bed
+        cut -f 9 > neg.bed
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
         cat n.bed | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-        cut -f 4,9 > neg.bed
+        cut -f 9 > neg.bed
     fi
 
     # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
