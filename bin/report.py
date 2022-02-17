@@ -198,9 +198,6 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         df = pd.read_csv(table_file, sep='\t', names=header, index_col=False)
         if len(df) == 0:
             continue
-        # This bodges a problem with main.nf:target_summary producing
-        # duplicated rows
-        df.fillna(0, inplace=True)
 
         df_onoff = pd.read_csv(
             on_off,
