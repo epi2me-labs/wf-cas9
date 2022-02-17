@@ -18,6 +18,8 @@ include { fastq_ingress } from './lib/fastqingress'
 include { start_ping; end_ping } from './lib/ping'
 
 
+// def addSampleNameCol()
+
 process summariseReads {
     // concatenate fastq and fastq.gz in a dir
 
@@ -88,7 +90,7 @@ process build_index{
         file reference
     output:
         path "genome_index.mmi", emit: index
-        path("chrom.sizes"), emit: chrom_sizes
+        path "chrom.sizes", emit: chrom_sizes
     script:
     """
         minimap2 -t $params.threads -x map-ont -d genome_index.mmi $reference
@@ -129,6 +131,9 @@ process target_coverage {
     # NOTE
     use \W\+\W as strand may move columns in future versions
 
+    emits tsv with these columns
+        chr start end target cov_f cov_r sample_id
+
      */
     label "cas9"
     input:
@@ -139,15 +144,11 @@ process target_coverage {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_target_cov.bed'), emit: target_coverage
+        path('*_target_cov.bed'), emit: target_coverage
+
 
     script:
     // Skip generating plot data if not in debug mode
-    if (!params.debug_mode){
-    """
-    touch "${sample_id}_empty_target_cov.bed"
-    """
-    } else{
     """
     # Get alignment coverage at tiles per strand
 
@@ -171,12 +172,16 @@ process target_coverage {
             cut -f 9 > neg.bed
     fi
 
-    # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
+    # Cols ["chr", "start", "end", "target", "coverage_f", 'coverage_r']
     paste pos.bed neg.bed > ${sample_id}_target_cov.bed
+
+    # Add sample_id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_target_cov.bed > tmp
+    mv tmp ${sample_id}_target_cov.bed
 
     rm pos.bed neg.bed
     """
-    }
+
 }
 
 process target_summary {
@@ -205,7 +210,7 @@ process target_summary {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_target_summary.bed'), emit: table
+        path('*_target_summary.bed'), emit: table
     script:
     """
     # Map targets to aln.
@@ -234,6 +239,10 @@ process target_summary {
         pos.bed \
         neg.bed > ${sample_id}_target_summary.bed
 
+    # Add sample_id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_target_summary.bed > tmp
+    mv tmp ${sample_id}_target_summary.bed
+
     rm median_coverage.bed pos.bed neg.bed
     """
 }
@@ -245,8 +254,8 @@ process coverage_summary {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
-        tuple val(sample_id), path('*on_off.bed'), emit: on_off
+        path('*on_off_summ.csv'), emit: summary
+        path('*on_off.bed'), emit: on_off
         tuple val(sample_id), path('*on.bed'), emit: on
     script:
     """
@@ -264,6 +273,13 @@ process coverage_summary {
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
+
+    # Add sample id columns
+    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off_summ.csv > tmp1
+    mv tmp1 ${sample_id}_on_off_summ.csv
+
+    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off.bed > tmp2
+    mv tmp2 ${sample_id}_on_off.bed
     """
 }
 
@@ -276,15 +292,9 @@ process background {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_tiles_background_cov.bed'), emit: table
-        tuple val(sample_id), path('*off_target_hotspots.bed'), emit: hotspots
+        path('*_tiles_background_cov.bed'), emit: table
+        path('*off_target_hotspots.bed'), emit: hotspots
     script:
-    if (!params.debug_mode){
-    """
-    touch ${sample_id}_tiles_background_cov.bed
-    touch ${sample_id}_off_target_hotspots.bed
-    """
-    } else{
     """
     # Slop = padding of targets
     # remove reads that overlap slopped targets
@@ -296,8 +306,14 @@ process background {
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
         bedtools merge -i - | bedtools coverage -a - -b $aln | \
         cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+
+    # Add sample_id columns
+    sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp1
+    mv tmp1 ${sample_id}_tiles_background_cov.bed
+
+    sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp2
+    mv tmp2 ${sample_id}_off_target_hotspots.bed
     """
-    }
 }
 
 
@@ -322,28 +338,20 @@ process makeReport {
         path "versions/*"
         path "params.json"
         tuple val(sample_ids),
-              path(seq_summaries),
-              path(target_coverage),
-              path(target_summary_table),
-              path(background),
-              path(off_target_hotspots),
-              path(coverage_summary),
-              path(on_off)
+              path(seq_summaries)
+        path target_coverage
+        path target_summary_table
+        path background
+        path off_target_hotspots
+        path coverage_summary
+        path on_off
+
     output:
         path "wf-cas9-*.html", emit: report
     script:
         report_name = "wf-cas9-" + params.report_name + '.html'
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
-        if (params.debug_mode){
-            debug_data = """--target_coverage $target_coverage \
-                            --background $background \
-                            --off_target_hotspots $off_target_hotspots
-                         """
-        }else{
-            debug_data = ""
-        }
-        print(params.debug_mode)
     """
     report.py $report_name \
         --summaries $seq_summaries \
@@ -353,7 +361,9 @@ process makeReport {
         --sample_ids $sids \
         --coverage_summary $coverage_summary \
         --on_off $on_off \
-        $debug_data
+        --target_coverage $target_coverage \
+        --background $background \
+        --off_target_hotspots $off_target_hotspots
     """
 }
 
@@ -420,21 +430,32 @@ workflow pipeline {
             align_reads.out.bed)
 
 
+//         report = makeReport(software_versions,
+//                     workflow_params,
+//                     summariseReads.out.stats
+//                     .join(target_coverage.out.target_coverage)
+//                     .join(target_summary.out.table)
+//                     .join(background.out.table)
+//                     .join(background.out.hotspots)
+//                     .join(coverage_summary.out.summary)
+//                     .join(coverage_summary.out.on_off)
+//                     .toList().transpose().toList())
         report = makeReport(software_versions,
                     workflow_params,
-                    summariseReads.out.stats
-                    .join(target_coverage.out.target_coverage)
-                    .join(target_summary.out.table)
-                    .join(background.out.table)
-                    .join(background.out.hotspots)
-                    .join(coverage_summary.out.summary)
-                    .join(coverage_summary.out.on_off)
-                    .toList().transpose().toList())
+                    summariseReads.out.stats.toList().transpose().toList(),
+                    target_coverage.out.target_coverage.collectFile(name: 'target_coverage'),
+                    target_summary.out.table.collectFile(name: 'target_summary'),
+                    background.out.table.collectFile(name: 'background'),
+                    background.out.hotspots.collectFile(name: 'hotspots'),
+                    coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
+                    coverage_summary.out.on_off.collectFile(name: 'on_off'),
+                    )
 
-        results = summariseReads.out.stats
-             .concat(get_on_target_reads.out)
+        results = get_on_target_reads.out
+             .concat(summariseReads.out.stats)
              .map {it -> it[1]} // Remove sample id from tuples
              .concat(makeReport.out.report)
+
 
     emit:
         results

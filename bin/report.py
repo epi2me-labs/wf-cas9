@@ -15,8 +15,7 @@ from natsort import natsort_keygen, natsorted
 import pandas as pd
 
 
-def plot_target_coverage(report: WFReport, sample_ids,
-                         target_coverages: List[Path]):
+def plot_target_coverage(report: WFReport, target_coverages: Path):
     """Make coverage plots of each target.
 
     Detailing positive and negative strand coverage.
@@ -31,11 +30,12 @@ def plot_target_coverage(report: WFReport, sample_ids,
     in discretized bins of 100 bp.
     ''')
 
-    header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r']
+    header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r',
+              "sample_id"]
     tabs = []
 
-    for (id_, t_cov) in zip(sample_ids, target_coverages):
-        df = pd.read_csv(t_cov, names=header, sep='\t')
+    main_df = pd.read_csv(target_coverages, names=header, sep='\t')
+    for id_, df in main_df.groupby('sample_id'):
         dfg = df.groupby('target')
 
         ncols = dfg.ngroups if dfg.ngroups < 5 else 4
@@ -85,10 +85,10 @@ def plot_target_coverage(report: WFReport, sample_ids,
 
 
 def make_coverage_summary_table(report: WFReport,
-                                sample_ids: List,
-                                table_files: List[Path],
+                                sample_ids: List[str],
+                                table_file: Path,
                                 seq_stats: List[Path],
-                                on_offs: List[Path]):
+                                on_offs: Path):
     """
     Summary table detailing all on and off target reads.
 
@@ -109,30 +109,29 @@ def make_coverage_summary_table(report: WFReport,
         bases.
         ''')
     sample_frames = []
-    for id_, table_file, stats, on_off in \
-            zip(sample_ids, table_files, seq_stats, on_offs):
 
-        try:
-            df = pd.read_csv(
-                table_file, sep='\t', names=[
-                    'on-target', 'off-target'])
-        except pd.errors.EmptyDataError:
-            continue
+    id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
+    df_onoff = pd.read_csv(
+        on_offs,
+        sep='\t',
+        names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
+        index_col=False)
 
-        df['all'] = df['on-target'] + df['off-target']
+    main_df = pd.read_csv(
+        table_file, sep='\t', names=['on target', 'off target', 'sample_id'])
+
+    for id_, df in main_df.groupby('sample_id'):
+        df = df.drop(columns=['sample_id'])
+        df['all'] = df['on target'] + df['off target']
 
         df = df.T
         df.columns = ['num_reads', 'kbases mapped']
         df['kbases mapped'] = df['kbases mapped'] / 1000
 
-        df_stats = pd.read_csv(stats, sep='\t')
+        df_stats = pd.read_csv(id_stats[id_], sep='\t')
 
-        df_onoff = pd.read_csv(
-            on_off,
-            sep='\t',
-            names=['chr', 'start', 'end', 'read_id', 'target'])
-
-        df_m = df_onoff.merge(df_stats[['read_id', 'read_length']],
+        df_m = df_onoff[df_onoff['sample_id'] == id_]
+        df_m = df_m.merge(df_stats[['read_id', 'read_length']],
                               left_on='read_id', right_on='read_id')
         df_m['target'] = df_m['target'].fillna('OFF')
 
@@ -162,7 +161,7 @@ def make_coverage_summary_table(report: WFReport,
 
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
-                              table_files: List[Path],
+                              table_file: Path,
                               seq_stats, on_off_bed):
     """Create a table of target summary statistics.
 
@@ -189,21 +188,26 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
     # Note meanAlnLen: needs to be switched to meanreadLen in next version
     header = ['chr', 'start', 'end', 'target', '#reads', '#basesCov',
-              'targetLen', 'fracTargAln', 'medianCov', 'p', 'n']
+              'targetLen', 'fracTargAln', 'medianCov', 'p', 'n', 'sample_id']
 
     frames = []
-    for (id_, table_file, stats, on_off) in \
-            zip(sample_ids, table_files, seq_stats, on_off_bed):
-        df = pd.read_csv(table_file, sep='\t', names=header, index_col=False)
+    id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
+
+    df_onoff = pd.read_csv(
+        on_off_bed,
+        sep='\t',
+        names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
+        index_col=False)
+
+    main_df = pd.read_csv(
+        table_file, sep='\t', names=header, index_col=False)
+
+    for id_, df in main_df.groupby('sample_id'):
+        df = df.drop(columns=['sample_id'])
         if len(df) == 0:
             continue
 
-        df_onoff = pd.read_csv(
-            on_off,
-            sep='\t',
-            names=['chr', 'start', 'end', 'read_id', 'target'])
-
-        df_stats = pd.read_csv(stats, sep='\t')
+        df_stats = pd.read_csv(id_stats[id_], sep='\t')
         df_on_off = df_onoff.merge(df_stats[['read_id', 'read_length']],
                                    left_on='read_id', right_on='read_id')
 
@@ -250,9 +254,8 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
     section.table(df_all, searchable=True, paging=True)
 
 
-def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
-                             background: List[Path], target_coverage:
-                             List[Path]):
+def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
+                             target_coverage: List[Path]):
     """Coverage histograms.
 
     Show on-target and off-target (proximal removed) coverage
@@ -278,25 +281,26 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
             ''')
 
     header_target = ["chr", "start", "end", "target", "coverage_f",
-                     'coverage_r']
+                     'coverage_r', 'sample_id']
     header_background = ['chr', 'start', 'end', 'tile_name', '#reads',
-                         '#bases_cov', 'tileLen', 'fracTileAln']
+                         '#bases_cov', 'tileLen', 'fracTileAln', 'sample_id']
 
     plots = []
-    for id_, bg, tc_ in zip(sample_ids, background, target_coverage):
-        df = pd.read_csv(bg, sep='\t', names=header_background)
 
-        dft = pd.read_csv(tc_, names=header_target, sep='\t')
+    df_target = pd.read_csv(target_coverage, sep='\t', names=header_target)
+    df_background = pd.read_csv(background, sep='\t', names=header_background)
+    for id_, dfb, in df_background.groupby('sample_id'):
+        dft = df_target[df_target.sample_id == id_]
         # Extract target coverage
         tc = pd.DataFrame(dft.coverage_f + dft.coverage_r)
         tc.columns = ['coverage']
 
-        len_bg = len(df['#reads'].values)
+        len_bg = len(dfb['#reads'].values)
         len_target = len(tc['coverage'])
         weights = [[1 / len_bg] * len_bg,
                    [1 / len_target] * len_target]
 
-        plot = hist.histogram([df['#reads'].values,
+        plot = hist.histogram([dfb['#reads'].values,
                                tc['coverage']],
                               colors=['#1A85FF',
                                       '#D41159'],
@@ -314,9 +318,8 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
     section.plot(grid)
 
 
-def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
-                                 background: List[Path],
-                                 nreads_cutoff=10):
+def make_offtarget_hotspot_table(report: WFReport, background: Path,
+                                nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
 
     :param background: fill in
@@ -335,10 +338,11 @@ def make_offtarget_hotspot_table(report: WFReport, sample_ids: List[str],
             overlapping reads. These hotspots may indicate incorrectly-
             performing primers. Only regions with {} reads or more are included
             '''.format(nreads_cutoff))
-    for (id_, bg) in zip(sample_ids, background):
-        df = pd.read_csv(
-            bg, sep='\t', names=['chr', 'start', 'end', 'numReads']
-        )
+    main_df = pd.read_csv(
+        background, sep='\t',
+        names=['chr', 'start', 'end', 'numReads', 'sample_id'])
+
+    for id_, df in main_df.groupby('sample_id'):
         df = df[df.numReads >= nreads_cutoff]
         df['hotspotLength'] = df.end - df.start
         df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
@@ -370,22 +374,22 @@ def main():
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
     parser.add_argument(
-        "--coverage_summary", required=True, nargs='+', type=Path,
+        "--coverage_summary", required=True, type=Path,
         help="Contigency table coverage summary csv")
     parser.add_argument(
         "--target_coverage", required=False, default=None,
-        nargs='+', type=Path, help="Tiled coverage for each target")
+        type=Path, help="Tiled coverage for each target")
     parser.add_argument(
-        "--target_summary", required=True, nargs='+', type=Path,
+        "--target_summary", required=True, type=Path,
         help="Summary stats for each target. CSV.")
     parser.add_argument(
-        "--background", required=False, default=None, nargs='+', type=Path,
+        "--background", required=False, default=None, type=Path,
         help="Tiled background coverage")
     parser.add_argument(
-        "--off_target_hotspots", required=False, default=None, nargs='+',
+        "--off_target_hotspots", required=False, default=None,
         type=Path, help="Tiled background coverage")
     parser.add_argument(
-        "--on_off", required=True, nargs='+', type=Path,
+        "--on_off", required=True, type=Path,
         help="Bed file. 5th column containing target or empty for off-target")
     args = parser.parse_args()
 
@@ -423,14 +427,13 @@ def main():
                               args.summaries, args.on_off)
 
     if args.target_coverage:
-        plot_target_coverage(report, args.sample_ids, args.target_coverage)
+        plot_target_coverage(report, args.target_coverage)
 
     if args.background and args.target_coverage:
-        plot_tiled_coverage_hist(report, args.sample_ids, args.background,
-                                 args.target_coverage)
+        plot_tiled_coverage_hist(report, args.background, args.target_coverage)
+
     if args.off_target_hotspots:
-        make_offtarget_hotspot_table(report, args.sample_ids,
-                                     args.off_target_hotspots)
+        make_offtarget_hotspot_table(report, args.off_target_hotspots)
 
     report.add_section(
         section=scomponents.version_table(args.versions))
