@@ -4,9 +4,8 @@
 import argparse
 from pathlib import Path
 from typing import List
-from time import time
 
-from aplanat import bars, hist, lines
+from aplanat import hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
@@ -213,7 +212,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
         df_stats = pd.read_csv(stats, sep='\t')
         df_on_off = df_onoff.merge(df_stats[['read_id', 'read_length']],
-                              left_on='read_id', right_on='read_id')
+                                   left_on='read_id', right_on='read_id')
 
         read_len = df_on_off.groupby(['target']).mean()[['read_length']]
         read_len.columns = ['meanReadLen']
@@ -287,9 +286,9 @@ def plot_tiled_coverage_hist(report: WFReport, sample_ids: List,
             ''')
 
     header_target = ["chr", "start", "end", 'name_f', "target", "coverage_f",
-              'name_r', 'coverage_r']
-    header_background = ['chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov',
-              'tileLen', 'fracTileAln']
+                     'name_r', 'coverage_r']
+    header_background = ['chr', 'start', 'end', 'tile_name', '#reads',
+                         '#bases_cov', 'tileLen', 'fracTileAln']
 
     plots = []
     for id_, bg, tc_ in zip(sample_ids, background, target_coverage):
@@ -441,7 +440,7 @@ def main():
                                  args.target_coverage)
     if args.off_target_hotspots:
         make_offtarget_hotspot_table(report, args.sample_ids,
-                                 args.off_target_hotspots)
+                                     args.off_target_hotspots)
 
     report.add_section(
         section=scomponents.version_table(args.versions))
