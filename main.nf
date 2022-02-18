@@ -420,7 +420,7 @@ workflow pipeline {
             align_reads.out.bed)
 
         // No output in debug mode
-        if (params.debug_mode){
+        if (params.full_report){
             target_coverage(targets,
                 make_tiles.out.tiles,
                 make_tiles.out.tiles_inter_targets,
