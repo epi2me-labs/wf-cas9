@@ -148,7 +148,6 @@ process target_coverage {
 
 
     script:
-    // Skip generating plot data if not in debug mode
     """
     # Get alignment coverage at tiles per strand
 
@@ -352,6 +351,10 @@ process makeReport {
         report_name = "wf-cas9-" + params.report_name + '.html'
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
+        def opttcov = target_coverage.name.startsWith('OPTIONAL_FILE') ? '' : "--target_coverage ${target_coverage}"
+        def optbcov = background.name.startsWith('OPTIONAL_FILE') ? '' : "--background ${background}"
+        def optbghot = off_target_hotspots.name.startsWith('OPTIONAL_FILE') ? '' : "--off_target_hotspots ${off_target_hotspots}"
+
     """
     report.py $report_name \
         --summaries $seq_summaries \
@@ -361,9 +364,9 @@ process makeReport {
         --sample_ids $sids \
         --coverage_summary $coverage_summary \
         --on_off $on_off \
-        --target_coverage $target_coverage \
-        --background $background \
-        --off_target_hotspots $off_target_hotspots
+        ${opttcov} \
+        ${optbcov} \
+        ${optbghot}
     """
 }
 
@@ -382,7 +385,6 @@ process output {
     echo "Writing output files"
     """
 }
-
 
 
 // workflow module
@@ -418,7 +420,7 @@ workflow pipeline {
             align_reads.out.bed)
 
         // No output in debug mode
-        if (!params.debug_mode){
+        if (params.debug_mode){
             target_coverage(targets,
                 make_tiles.out.tiles,
                 make_tiles.out.tiles_inter_targets,

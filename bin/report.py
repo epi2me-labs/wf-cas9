@@ -33,7 +33,8 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
     header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r',
               "sample_id"]
     tabs = []
-
+    import os
+    a = os.getcwd()
     main_df = pd.read_csv(target_coverages, names=header, sep='\t')
     for id_, df in main_df.groupby('sample_id'):
         dfg = df.groupby('target')
