@@ -1,4 +1,4 @@
-# Workflow template
+# wf-cas9
 
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
 for the multiplexed analysis of Cas9-targeted sequencing. 
@@ -23,7 +23,7 @@ For more information on running EPI2ME Labs workflows [visit out website](https:
 To obtain the workflow, having installed `nextflow`, users can run:
 
 ```
-nextflow run epi2me-labs/wf-template --help
+nextflow run epi2me-labs/wf-cas9 --help
 ```
 to see the options for the workflow.
 
@@ -61,17 +61,12 @@ By default, the report contains sequencing quality plots and two tables that sum
 * on/off-target reads per sample.
 * summaries of each sample/target pair. 
 
-Using the `--debug_mode`, the report will also contain the following elements that may be useful for 
+Using `--full_report`, the report will also contain the following elements that may be useful for 
 diagnosing issues with the experiment. These are turned off by default as they can lead to slow loading of the 
 HTML report:
 * plots of stranded coverage at each target.
 * histograms of on and off-target coverage for each sample.
 * off-target hotspot region tables.
-
-
-
-
-
 
 ## Useful links
 
