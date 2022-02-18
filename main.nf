@@ -18,6 +18,8 @@ include { fastq_ingress } from './lib/fastqingress'
 include { start_ping; end_ping } from './lib/ping'
 
 
+// def addSampleNameCol()
+
 process summariseReads {
     // concatenate fastq and fastq.gz in a dir
 
@@ -66,11 +68,14 @@ process make_tiles {
     label 'cas9'
     input:
         path chrom_sizes
+        path targets
     output:
         path 'tiles.bed', emit: tiles
+        path 'tiles_int_targets.bed', emit: tiles_inter_targets
     script:
     """
     bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' | gzip > tiles.bed
+    bedtools intersect -a tiles.bed -b $targets -wb > tiles_int_targets.bed
     """
 }
 
@@ -85,7 +90,7 @@ process build_index{
         file reference
     output:
         path "genome_index.mmi", emit: index
-        path("chrom.sizes"), emit: chrom_sizes
+        path "chrom.sizes", emit: chrom_sizes
     script:
     """
         minimap2 -t $params.threads -x map-ont -d genome_index.mmi $reference
@@ -126,85 +131,118 @@ process target_coverage {
     # NOTE
     use \W\+\W as strand may move columns in future versions
 
+    emits tsv with these columns
+        chr start end target cov_f cov_r sample_id
+
      */
     label "cas9"
     input:
         path targets
         path tiles
+        path tiles_inter_targets
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_target_cov.bed'), emit: target_coverage
+        path('*_target_cov.bed'), emit: target_coverage
+
 
     script:
     """
-    # Bed file for mapping tile to target
-    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
-
     # Get alignment coverage at tiles per strand
-    cat $aln | grep "\\W+" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 1,2,3,4,8,9 > pos.bed
 
-    cat $aln | grep "\\W-" | bedtools coverage -a tiles_int_targets.bed -b - | \
-    cut -f 4,9 > neg.bed
+    if grep -q "\\W+" $aln
+      then
+        cat $aln | grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
+            cut -f 1,2,3,8,9 > pos.bed
+      else
+        echo "_\t0\t1\ttest_id\t0\t+" > p.bed
+        cat p.bed| grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
+            cut -f 1,2,3,8,9 > pos.bed
+    fi
 
-    # Cols ["chr", "start", "end", 'name_f', "target", "coverage_f", 'name_r', 'coverage_r']
+    if grep -q "\\W-" $aln
+      then
+        cat $aln | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
+            cut -f 9 > neg.bed
+      else
+        echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
+        cat n.bed | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
+            cut -f 9 > neg.bed
+    fi
+
+    # Cols ["chr", "start", "end", "target", "coverage_f", 'coverage_r']
     paste pos.bed neg.bed > ${sample_id}_target_cov.bed
+
+    # Add sample_id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_target_cov.bed > tmp
+    mv tmp ${sample_id}_target_cov.bed
 
     rm pos.bed neg.bed
     """
+
 }
 
 process target_summary {
+    /*
+    Make a target summary bed file with a row per target. Columns:
+        chr,
+        start,
+        end,
+        target,
+        number of reads,
+        num bases covered,
+        target length,
+        fracTargAln,
+        medianCov,
+        num positive
+        strand reads,
+        num negative,
+        strand reads
+    */
     label "cas9"
     input:
         path targets
         path tiles
+        path tiles_inter_targets
         path chrom_sizes
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_target_summary.bed'), emit: table
+        path('*_target_summary.bed'), emit: table
     script:
     """
-    # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
-    bedtools coverage -a $targets -b $aln | bedtools sort > target_summary_temp.bed
-
-    # Bed file for mapping tile to target
-    bedtools intersect -a $tiles -b $targets -wb > tiles_int_targets.bed
-
-    # Get alignment coverage at tiles per strand. Note:
-    cat $aln | bedtools coverage -a tiles_int_targets.bed -b -  > target_cov.bed
-    # Get median coverage (col 9) by target (col 8)
-    # bedtools sort breaks here for reasons unknown, so is not done.
-    bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
-
-    # Map targets to aln
+    # Map targets to aln.
+    # If the output is empty, there are no reads intersecting targets. In this case output an empty table file
     cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
 
+    # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
+    # This forms first few columns of output table
+    bedtools coverage -a $targets -b $aln > target_summary_temp.bed
+
+    # Get alignment coverage at tiles per strand
+    cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
+
+    # Get median coverage (col 9) by target (col 8)
+
+    bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
+
     # Strand bias
-    cat aln_targets.bed | grep '\\W+\\W' | bedtools coverage -a - -b $targets -wb | \
-    bedtools sort | bedtools groupby -g 10 -c 1 -o count | cut -f 2  > pos.bed
 
-    cat aln_targets.bed | grep '\\W-\\W' | bedtools coverage -a - -b $targets -wb | \
-     bedtools groupby -g 10 -c 1 -o count | cut -f 2 > neg.bed
+    cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a $targets | cut -f 5  > pos.bed  || true
 
-    # Mean read len
-    # Actually this is mean alignment length
-    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10 -c 13 -o mean | cut -f2 >  mean_read_len.bed
-
-    # bases of coverage
-    cat aln_targets.bed | bedtools coverage -a - -b $targets -wb | bedtools groupby -g 10, -c 12 -o sum | cut -f 2 > bases.bed
+    cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
 
     paste target_summary_temp.bed \
-      mean_read_len.bed \
-      bases.bed \
-      median_coverage.bed \
-      pos.bed \
-      neg.bed > ${sample_id}_target_summary.bed
+        median_coverage.bed \
+        pos.bed \
+        neg.bed > ${sample_id}_target_summary.bed
 
-    #rm mean_read_len.bed kbases.bed median_coverage.bed pos.bed neg.bed
+    # Add sample_id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_target_summary.bed > tmp
+    mv tmp ${sample_id}_target_summary.bed
+
+    rm median_coverage.bed pos.bed neg.bed
     """
 }
 
@@ -215,13 +253,14 @@ process coverage_summary {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*on_off_summ.csv'), emit: summary
-        tuple val(sample_id), path('*on_off.bed'), emit: on_off
+        path('*on_off_summ.csv'), emit: summary
+        path('*on_off.bed'), emit: on_off
         tuple val(sample_id), path('*on.bed'), emit: on
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
-    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4  > off.bed
+    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 | \
+     awk -F '\\t' -v OFS='\\t' '{ \$(NF+1) = OFF; print }'  > off.bed
     bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > on.bed
 
     numread_on=\$(cat on.bed | wc -l | tr -d ' ')
@@ -233,6 +272,13 @@ process coverage_summary {
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
+
+    # Add sample id columns
+    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off_summ.csv > tmp1
+    mv tmp1 ${sample_id}_on_off_summ.csv
+
+    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off.bed > tmp2
+    mv tmp2 ${sample_id}_on_off.bed
     """
 }
 
@@ -245,21 +291,27 @@ process background {
         tuple val(sample_id),
               path(aln)
     output:
-        tuple val(sample_id), path('*_tiles_background_cov.bed'), emit: table
-        tuple val(sample_id), path('*off_target_hotspots.bed'), emit: hotspots
+        path('*_tiles_background_cov.bed'), emit: table
+        path('*off_target_hotspots.bed'), emit: hotspots
     script:
     """
     # Slop = padding of targets
-    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
     # remove reads that overlap slopped targets
-    bedtools intersect -v -a $aln -b - -wa | \
-    bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
+    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
+        bedtools intersect -v -a $aln -b - -wa | \
+        bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
 
     # Get all contiguous regions of background alignments
     cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
-    bedtools merge -i - | bedtools coverage -a - -b $aln | \
-    cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+        bedtools merge -i - | bedtools coverage -a - -b $aln | \
+        cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
 
+    # Add sample_id columns
+    sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp1
+    mv tmp1 ${sample_id}_tiles_background_cov.bed
+
+    sed "s/\$/\t${sample_id}/" ${sample_id}_off_target_hotspots.bed > tmp2
+    mv tmp2 ${sample_id}_off_target_hotspots.bed
     """
 }
 
@@ -285,31 +337,36 @@ process makeReport {
         path "versions/*"
         path "params.json"
         tuple val(sample_ids),
-              path(seq_summaries),
-              path(target_coverage),
-              path(target_summary_table),
-              path(background),
-              path(off_target_hotspots),
-              path(coverage_summary),
-              path(on_off)
+              path(seq_summaries)
+        path target_coverage
+        path target_summary_table
+        path background
+        path off_target_hotspots
+        path coverage_summary
+        path on_off
+
     output:
         path "wf-cas9-*.html", emit: report
     script:
         report_name = "wf-cas9-" + params.report_name + '.html'
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
+        def opttcov = target_coverage.name.startsWith('OPTIONAL_FILE') ? '' : "--target_coverage ${target_coverage}"
+        def optbcov = background.name.startsWith('OPTIONAL_FILE') ? '' : "--background ${background}"
+        def optbghot = off_target_hotspots.name.startsWith('OPTIONAL_FILE') ? '' : "--off_target_hotspots ${off_target_hotspots}"
+
     """
     report.py $report_name \
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \
-        --target_coverage $target_coverage \
         --target_summary $target_summary_table \
         --sample_ids $sids \
-        --background $background \
-        --off_target_hotspots $off_target_hotspots \
         --coverage_summary $coverage_summary \
-        --on_off $on_off
+        --on_off $on_off \
+        ${opttcov} \
+        ${optbcov} \
+        ${optbghot}
     """
 }
 
@@ -330,7 +387,6 @@ process output {
 }
 
 
-
 // workflow module
 workflow pipeline {
     take:
@@ -338,7 +394,6 @@ workflow pipeline {
         ref_genome
         targets
     main:
-        println(reads)
         build_index(ref_genome)
         summariseReads(reads)
         software_versions = getVersions()
@@ -349,43 +404,60 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads)
 
-        make_tiles(build_index.out.chrom_sizes)
-
-        target_coverage(targets,
-            make_tiles.out.tiles,
-            build_index.out.chrom_sizes,
-            align_reads.out.bed)
-
-        target_summary(targets,
-            make_tiles.out.tiles,
-            build_index.out.chrom_sizes,
-            align_reads.out.bed)
-
-        background(targets,
-            make_tiles.out.tiles,
-            build_index.out.chrom_sizes,
-            align_reads.out.bed)
+        make_tiles(build_index.out.chrom_sizes,
+            targets)
 
         coverage_summary(targets,
             align_reads.out.bed)
 
-        get_on_target_reads(summariseReads.out.reads
+       get_on_target_reads(summariseReads.out.reads
             .join(coverage_summary.out.on))
+
+        target_summary(targets,
+            make_tiles.out.tiles,
+            make_tiles.out.tiles_inter_targets,
+            build_index.out.chrom_sizes,
+            align_reads.out.bed)
+
+        // No output in debug mode
+        if (params.full_report){
+            target_coverage(targets,
+                make_tiles.out.tiles,
+                make_tiles.out.tiles_inter_targets,
+                build_index.out.chrom_sizes,
+                align_reads.out.bed)
+
+            background(targets,
+                make_tiles.out.tiles,
+                build_index.out.chrom_sizes,
+                align_reads.out.bed)
+
+            tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage')
+            bg_cov = background.out.table.collectFile(name: 'background')
+            bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
+
+        }else {
+            tar_cov_tsv = file("$projectDir/data/OPTIONAL_FILE")
+            bg_cov = file("$projectDir/data/OPTIONAL_FILE1")
+            bg_hotspots = file("$projectDir/data/OPTIONAL_FILE2")
+        }
 
         report = makeReport(software_versions,
                     workflow_params,
-                    summariseReads.out.stats
-                    .join(target_coverage.out.target_coverage)
-                    .join(target_summary.out.table)
-                    .join(background.out.table)
-                    .join(background.out.hotspots)
-                    .join(coverage_summary.out.summary)
-                    .join(coverage_summary.out.on_off)
-                    .toList().transpose().toList())
+                    summariseReads.out.stats.toList().transpose().toList(),
+                    tar_cov_tsv,
+                    target_summary.out.table.collectFile(name: 'target_summary'),
+                    bg_cov,
+                    bg_hotspots,
+                    coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
+                    coverage_summary.out.on_off.collectFile(name: 'on_off'),
+                    )
 
         results = get_on_target_reads.out
-            .map {it -> it[1]}  // remove sample ids from tuple
-            .concat(makeReport.out.report)
+             .concat(summariseReads.out.stats)
+             .map {it -> it[1]} // Remove sample id from tuples
+             .concat(makeReport.out.report)
+
     emit:
         results
         telemetry = workflow_params
@@ -405,6 +477,12 @@ workflow {
     targets = file(params.targets, type: "file")
     if (!targets.exists()) {
         println("--targets: File doesn't exist, check path.")
+        exit 1
+    }
+    def line
+    targets.withReader { line = it.readLine() }
+    if (line.split("\t").size() != 4){
+        println('Target file should have 4 cols: chr start end target_name')
         exit 1
     }
 
