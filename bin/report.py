@@ -33,8 +33,6 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
     header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r',
               "sample_id"]
     tabs = []
-    import os
-    a = os.getcwd()
     main_df = pd.read_csv(target_coverages, names=header, sep='\t')
     for id_, df in main_df.groupby('sample_id'):
         dfg = df.groupby('target')
@@ -132,8 +130,9 @@ def make_coverage_summary_table(report: WFReport,
         df_stats = pd.read_csv(id_stats[id_], sep='\t')
 
         df_m = df_onoff[df_onoff['sample_id'] == id_]
-        df_m = df_m.merge(df_stats[['read_id', 'read_length']],
-                              left_on='read_id', right_on='read_id')
+        df_m = df_m.merge(
+            df_stats[['read_id', 'read_length']],
+            left_on='read_id', right_on='read_id')
         df_m['target'] = df_m['target'].fillna('OFF')
 
         mean_read_len = [df_m[df_m.target != 'OFF'].read_length.mean(),
@@ -320,7 +319,7 @@ def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
 
 
 def make_offtarget_hotspot_table(report: WFReport, background: Path,
-                                nreads_cutoff=10):
+                                 nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
 
     :param background: fill in
