@@ -57,8 +57,8 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
                 y_axis_label='',
                 colors=['#1A85FF', '#D41159'],
                 ylim=ylim,
-                height=200, width=300
-            )
+                height=200, width=300)
+
             p.xaxis.formatter.use_scientific = False
             p.xaxis.major_label_orientation = 3.14 / 6
 
@@ -111,8 +111,7 @@ def make_coverage_summary_table(report: WFReport,
 
     id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
     df_onoff = pd.read_csv(
-        on_offs,
-        sep='\t',
+        on_offs, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
@@ -135,9 +134,10 @@ def make_coverage_summary_table(report: WFReport,
             left_on='read_id', right_on='read_id')
         df_m['target'] = df_m['target'].fillna('OFF')
 
-        mean_read_len = [df_m[df_m.target != 'OFF'].read_length.mean(),
-                         df_m[df_m.target == 'OFF'].read_length.mean(),
-                         df_m.read_length.mean()]
+        mean_read_len = [
+            df_m[df_m.target != 'OFF'].read_length.mean(),
+            df_m[df_m.target == 'OFF'].read_length.mean(),
+            df_m.read_length.mean()]
 
         df['mean read length'] = mean_read_len
         df.fillna(0, inplace=True)
@@ -151,9 +151,7 @@ def make_coverage_summary_table(report: WFReport,
     df_all_samples = pd.concat(sample_frames)
 
     df_all_samples.sort_values(
-        by=["sample"],
-        key=natsort_keygen(),
-        inplace=True)
+        by=["sample"], key=natsort_keygen(), inplace=True)
     # Sort the multiindex columns
     df_all_samples = df_all_samples.T.sort_index(ascending=False).T
 
@@ -194,8 +192,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
     id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
 
     df_onoff = pd.read_csv(
-        on_off_bed,
-        sep='\t',
+        on_off_bed, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
@@ -208,8 +205,9 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             continue
 
         df_stats = pd.read_csv(id_stats[id_], sep='\t')
-        df_on_off = df_onoff.merge(df_stats[['read_id', 'read_length']],
-                                   left_on='read_id', right_on='read_id')
+        df_on_off = df_onoff.merge(
+            df_stats[['read_id', 'read_length']],
+            left_on='read_id', right_on='read_id')
 
         read_len = df_on_off.groupby(['target']).mean()[['read_length']]
         read_len.columns = ['meanReadLen']
@@ -240,14 +238,14 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             'targetLen': int
         })
 
-        df_all = df_all.round({'strandBias': 2,
-                               'fracTargAln': 2,
-                               'kbases': 2,
-                               'meanReadLen': 1})
+        df_all = df_all.round({
+            'strandBias': 2,
+            'fracTargAln': 2,
+            'kbases': 2,
+            'meanReadLen': 1})
+
         df_all.sort_values(
-            by=["sample", "chr", "start"],
-            key=natsort_keygen(),
-            inplace=True)
+            by=["sample", "chr", "start"], key=natsort_keygen(), inplace=True)
     else:
         df_all = pd.DataFrame()
 
@@ -289,6 +287,7 @@ def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
 
     df_target = pd.read_csv(target_coverage, sep='\t', names=header_target)
     df_background = pd.read_csv(background, sep='\t', names=header_background)
+
     for id_, dfb, in df_background.groupby('sample_id'):
         dft = df_target[df_target.sample_id == id_]
         # Extract target coverage
@@ -300,19 +299,16 @@ def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
         weights = [[1 / len_bg] * len_bg,
                    [1 / len_target] * len_target]
 
-        plot = hist.histogram([dfb['#reads'].values,
-                               tc['coverage']],
-                              colors=['#1A85FF',
-                                      '#D41159'],
-                              normalize=True,
-                              weights=weights,
-                              names=['Background',
-                                     'On-target'],
-                              x_axis_label='Coverage',
-                              y_axis_label='Proportion of reads (normalized'
-                              'by class size)',
-                              title=id_
-                              )
+        plot = hist.histogram(
+            [dfb['#reads'].values, tc['coverage']],
+            colors=['#1A85FF', '#D41159'],
+            normalize=True,
+            weights=weights,
+            names=['Background', 'On-target'],
+            x_axis_label='Coverage',
+            y_axis_label='Proportion of reads (normalized by class size)',
+            title=id_)
+
         plots.append(plot)
     grid = gridplot(plots, ncols=3, width=360, height=300)
     section.plot(grid)
@@ -338,6 +334,7 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
             overlapping reads. These hotspots may indicate incorrectly-
             performing primers. Only regions with {} reads or more are included
             '''.format(nreads_cutoff))
+
     main_df = pd.read_csv(
         background, sep='\t',
         names=['chr', 'start', 'end', 'numReads', 'sample_id'])
