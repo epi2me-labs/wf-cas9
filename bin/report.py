@@ -224,7 +224,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             df['kbases'] = 0
 
         acc = df_on_off.groupby(['target']).mean()[['mean_quality']]
-        acc = 10 ** (-acc / 10)# This needs fixing
+        acc = 100 - (10 - (acc / 10))
         df = df.merge(acc, left_on='target', right_index=True)
 
         df['strand_bias'] = (df.p - df.n) / (df.p + df.n)
