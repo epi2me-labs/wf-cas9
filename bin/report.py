@@ -172,23 +172,20 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         This table provides a summary of all the target region detailing:
 
         * chr, start, end: target location.
-        * tname: the target name
+        * target: the target name
         * nreads: number of reads aligning.
-        - remove* coverage: number of bases at target region with at least 1 read 
-        aligning.
-        * coverage_frac: fraction of bases in target with non-zero coverage.
+        * coverage_frac: fraction of bases within target with non-zero coverage.
         * tsize: length of target (in bases).
-        * medianCov: average read depth across target.
+        * median_coverage: average read depth across target.
         * mean_read_length:  average read length of reads aligning.
         * strand_bias: proportional difference of reads aligning to each strand.
-            A value or +1 or -1 indicates complete bias to the foward or
+            A value or +1 or -1 indicates complete bias to the forward or
             reverse strand respectively.
         * kbases: number of bases in reads overlapping target.
         ''')
 
-    # Note meanAlnLen: needs to be switched to meanreadLen in next version
-    header = ['chr', 'start', 'end', 'tname', 'nreads', 'nbases',
-              'tsize', 'coverage', 'median_coverage', 'p', 'n', 'sample_id']
+    header = ['chr', 'start', 'end', 'target', 'nreads', 'nbases',
+              'tsize', 'coverage_frac', 'median_coverage', 'p', 'n', 'sample_id']
 
     frames = []
     id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
@@ -202,7 +199,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         table_file, sep='\t', names=header, index_col=False)
 
     for id_, df in main_df.groupby('sample_id'):
-        df = df.drop(columns=['sample_id', 'nbases'])
+        df = df.drop(columns=['sample_id'])
         if len(df) == 0:
             continue
 
@@ -212,11 +209,11 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             left_on='read_id', right_on='read_id')
 
         read_len = df_on_off.groupby(['target']).mean()[['read_length']]
-        read_len.columns = ['meanReadLen']
+        read_len.columns = ['mean_read_length']
         if len(read_len) > 0:
             df = df.merge(read_len, left_on='target', right_index=True)
         else:
-            df['meanReadLen'] = 0
+            df['mean_read_length'] = 0
 
         kbases = df_on_off.groupby(['target']).sum()[['read_length']] / 1000
         kbases.columns = ['kbases']
@@ -225,7 +222,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         else:
             df['kbases'] = 0
 
-        df['strandBias'] = (df.p - df.n) / (df.p + df.n)
+        df['strand_bias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
         df.insert(0, 'sample', id_)
         frames.append(df)
@@ -235,18 +232,21 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         df_all = df_all.astype({
             'start': int,
             'end': int,
-            '#reads': int,
-            '#basesCov': int,
-            'targetLen': int
+            'nreads': int,
+            'nbases': int,
+            'tsize': int
         })
 
         df_all = df_all.round({
-            'strandBias': 2,
-            'fracTargAln': 2,
+            'strand_bias': 2,
+            'coverage_frac': 2,
             'kbases': 2,
-            'meanReadLen': 1})
+            'mean_read_length': 1})
 
-        # df_all = df_all[]
+        df_all = df_all[[
+            'sample', 'chr', 'start', 'end', 'target', 'tsize',
+            'kbases', 'coverage_frac', 'median_coverage', 'nreads',
+            'mean_read_length', 'strand_bias']]
         df_all.sort_values(
             by=["sample", "chr", "start"], key=natsort_keygen(), inplace=True)
     else:
