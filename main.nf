@@ -191,7 +191,7 @@ process target_summary {
         end,
         target,
         number of reads,
-        num bases covered,
+         - num bases covered,
         target length,
         fracTargAln,
         medianCov,
@@ -213,10 +213,9 @@ process target_summary {
     script:
     """
     # Map targets to aln.
-    # If the output is empty, there are no reads intersecting targets. In this case output an empty table file
     cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
 
-    # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
+    # chr, start, stop, target, overlaps, covered_bases, len(target), frac_covered
     # This forms first few columns of output table
     bedtools coverage -a $targets -b $aln > target_summary_temp.bed
 
