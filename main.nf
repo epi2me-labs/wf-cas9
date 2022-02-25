@@ -191,7 +191,7 @@ process target_summary {
         end,
         target,
         number of reads,
-         - num bases covered,
+        num bases covered,
         target length,
         fracTargAln,
         medianCov,
@@ -223,8 +223,10 @@ process target_summary {
     cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
 
     # Get median coverage (col 9) by target (col 8)
-
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
+
+    # Get mean mapping quality score. No this is read mapping quality
+    # bedtools groupby -i aln_targets.bed -g 10 -c 5 -o mean | cut -f 2 > mean_quality.bed
 
     # Strand bias
 
@@ -235,7 +237,7 @@ process target_summary {
     paste target_summary_temp.bed \
         median_coverage.bed \
         pos.bed \
-        neg.bed > ${sample_id}_target_summary.bed
+        neg.bed  > ${sample_id}_target_summary.bed
 
     # Add sample_id column
     sed "s/\$/\t${sample_id}/" ${sample_id}_target_summary.bed > tmp

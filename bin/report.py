@@ -176,8 +176,9 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         * nreads: number of reads aligning.
         * coverage_frac: fraction of bases within target with non-zero coverage.
         * tsize: length of target (in bases).
-        * median_coverage: average read depth across target.
+        * median_cov: average read depth across target.
         * mean_read_length:  average read length of reads aligning.
+        * mean_acc: average mapping quality scores.
         * strand_bias: proportional difference of reads aligning to each strand.
             A value or +1 or -1 indicates complete bias to the forward or
             reverse strand respectively.
@@ -185,7 +186,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         ''')
 
     header = ['chr', 'start', 'end', 'target', 'nreads', 'nbases',
-              'tsize', 'coverage_frac', 'median_coverage', 'p', 'n', 'sample_id']
+              'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id']
 
     frames = []
     id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
@@ -205,7 +206,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
         df_stats = pd.read_csv(id_stats[id_], sep='\t')
         df_on_off = df_onoff.merge(
-            df_stats[['read_id', 'read_length']],
+            df_stats[['read_id', 'read_length', 'mean_quality']],
             left_on='read_id', right_on='read_id')
 
         read_len = df_on_off.groupby(['target']).mean()[['read_length']]
@@ -221,6 +222,10 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             df = df.merge(kbases, left_on='target', right_index=True)
         else:
             df['kbases'] = 0
+
+        acc = df_on_off.groupby(['target']).mean()[['mean_quality']]
+        acc = 10 ** (-acc / 10)# This needs fixing
+        df = df.merge(acc, left_on='target', right_index=True)
 
         df['strand_bias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
@@ -245,8 +250,8 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
 
         df_all = df_all[[
             'sample', 'chr', 'start', 'end', 'target', 'tsize',
-            'kbases', 'coverage_frac', 'median_coverage', 'nreads',
-            'mean_read_length', 'strand_bias']]
+            'kbases', 'coverage_frac', 'median_cov', 'nreads',
+            'mean_read_length', 'mean_acc', 'strand_bias']]
         df_all.sort_values(
             by=["sample", "chr", "start"], key=natsort_keygen(), inplace=True)
     else:
