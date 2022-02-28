@@ -224,6 +224,7 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             df['kbases'] = 0
 
         acc = df_on_off.groupby(['target']).mean()[['mean_quality']]
+        acc.columns = ['mean_acc']
         acc = 100 - (10 - (acc / 10))
         df = df.merge(acc, left_on='target', right_index=True)
 
