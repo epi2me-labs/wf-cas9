@@ -160,7 +160,7 @@ def make_coverage_summary_table(report: WFReport,
 
 def make_target_summary_table(report: WFReport, sample_ids: List,
                               table_file: Path,
-                              seq_stats, on_off_bed):
+                              aln_stats, on_off_bed):
     """Create a table of target summary statistics.
 
     TODO: missing mean accuracy column
@@ -191,25 +191,26 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
               'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id']
 
     frames = []
-    id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
 
-    df_onoff = pd.read_csv(
+    df_ono_ff = pd.read_csv(
         on_off_bed, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
+    stats_df = pd.read_csv(aln_stats, sep='\t', index_col=False)
+    df_on_off = df_ono_ff.merge(
+        stats_df[['name', 'read_length', 'acc']],
+        left_on='read_id', right_on='name')
+
     main_df = pd.read_csv(
         table_file, sep='\t', names=header, index_col=False)
+
+    print(stats_df.columns)
 
     for id_, df in main_df.groupby('sample_id'):
         df = df.drop(columns=['sample_id'])
         if len(df) == 0:
             continue
-
-        df_stats = pd.read_csv(id_stats[id_], sep='\t')
-        df_on_off = df_onoff.merge(
-            df_stats[['read_id', 'read_length', 'mean_quality']],
-            left_on='read_id', right_on='read_id')
 
         read_len = df_on_off.groupby(['target']).mean()[['read_length']]
         read_len.columns = ['mean_read_length']
@@ -225,9 +226,8 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         else:
             df['kbases'] = 0
 
-        acc = df_on_off.groupby(['target']).mean()[['mean_quality']]
+        acc = df_on_off.groupby(['target']).mean()[['acc']]
         acc.columns = ['mean_acc']
-        acc = 100 - (10 - (acc / 10))
         df = df.merge(acc, left_on='target', right_index=True)
 
         df['strand_bias'] = (df.p - df.n) / (df.p + df.n)
@@ -249,7 +249,8 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
             'strand_bias': 2,
             'coverage_frac': 2,
             'kbases': 2,
-            'mean_read_length': 1})
+            'mean_read_length': 1,
+            'mean_acc': 2})
 
         df_all = df_all[[
             'sample', 'chr', 'start', 'end', 'target', 'tsize',
@@ -399,6 +400,9 @@ def main():
     parser.add_argument(
         "--on_off", required=True, type=Path,
         help="Bed file. 5th column containing target or empty for off-target")
+    parser.add_argument(
+        "--aln_stats", required=True, type=Path,
+        help="Alignment accuracy from pomoxis")
     args = parser.parse_args()
 
     report = WFReport(
@@ -432,7 +436,7 @@ def main():
                                 args.summaries, args.on_off)
 
     make_target_summary_table(report, args.sample_ids, args.target_summary,
-                              args.summaries, args.on_off)
+                              args.aln_stats, args.on_off)
 
     if args.target_coverage:
         plot_target_coverage(report, args.target_coverage)

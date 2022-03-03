@@ -100,27 +100,22 @@ process build_index{
 }
 
 process align_reads {
-    /*
-    TODO: The number of off-target is quite a lot higher than in the tutorial
-    Tutorial uses mini_align rather than minimap2 directly.
-
-    mini_align \
-    -r "$reference_genome" -i "$input_file" \
-    -p "$output_folder/alignments" \
-    -t 4 -m
-    */
     label "cas9"
     input:
         path index
         path reference
         tuple val(sample_id), path(fastq_reads)
     output:
-        tuple val(sample_id), path("${sample_id}.sam"), emit: sam
+        tuple val(sample_id), path("${sample_id}_align_acc.csv"), emit: aln_stats
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
     script:
     """
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
     bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
+    # Get a csv with columns: [read_id, alignment_accuracy]
+    stats_from_bam ${sample_id}.sam | awk -F'\t' '{ print \$1,\$12,\$18}' OFS='\t' > ${sample_id}_align_acc.csv
+    sed "s/\$/\t${sample_id}/" ${sample_id}_align_acc.csv > tmp
+    mv tmp ${sample_id}_align_acc.csv
     """
 }
 
@@ -225,11 +220,7 @@ process target_summary {
     # Get median coverage (col 9) by target (col 8)
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
-    # Get mean mapping quality score. No this is read mapping quality
-    # bedtools groupby -i aln_targets.bed -g 10 -c 5 -o mean | cut -f 2 > mean_quality.bed
-
     # Strand bias
-
     cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a $targets | cut -f 5  > pos.bed  || true
 
     cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
@@ -345,6 +336,7 @@ process makeReport {
         path off_target_hotspots
         path coverage_summary
         path on_off
+        path aln_stats
 
     output:
         path "wf-cas9-*.html", emit: report
@@ -365,6 +357,7 @@ process makeReport {
         --sample_ids $sids \
         --coverage_summary $coverage_summary \
         --on_off $on_off \
+        --aln_stats $aln_stats \
         ${opttcov} \
         ${optbcov} \
         ${optbghot}
@@ -452,7 +445,7 @@ workflow pipeline {
                     bg_hotspots,
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
                     coverage_summary.out.on_off.collectFile(name: 'on_off'),
-                    )
+                    align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true))
 
         results = get_on_target_reads.out
              .concat(summariseReads.out.stats)
