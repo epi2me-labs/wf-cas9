@@ -174,12 +174,14 @@ def make_target_summary_table(report: WFReport, sample_ids: List,
         * chr, start, end: target location.
         * target: the target name
         * nreads: number of reads aligning.
-        * coverage_frac: fraction of bases within target with non-zero coverage.
+        * coverage_frac: fraction of bases within target with non-zero
+          coverage.
         * tsize: length of target (in bases).
         * median_cov: average read depth across target.
         * mean_read_length:  average read length of reads aligning.
         * mean_acc: average mapping quality scores.
-        * strand_bias: proportional difference of reads aligning to each strand.
+        * strand_bias: proportional difference of reads aligning to each
+          strand.
             A value or +1 or -1 indicates complete bias to the forward or
             reverse strand respectively.
         * kbases: number of bases in reads overlapping target.
