@@ -113,7 +113,8 @@ process align_reads {
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
     bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
-    stats_from_bam ${sample_id}.sam | awk -F'\t' '{ print \$1,\$12,\$18}' OFS='\t' > ${sample_id}_align_acc.csv
+    #stats_from_bam ${sample_id}.sam | awk -F'\t' '{ print \$1,\$12,\$18}' OFS='\t' > ${sample_id}_align_acc.csv
+    stats_from_bam ${sample_id}.sam > ${sample_id}_align_acc.csv
     sed "s/\$/\t${sample_id}/" ${sample_id}_align_acc.csv > tmp
     mv tmp ${sample_id}_align_acc.csv
     """
@@ -323,6 +324,24 @@ process get_on_target_reads {
     """
 }
 
+process build_tables {
+    label "cas9"
+    input:
+        path on_off
+        path seq_summary
+        path target_summary
+    output:
+        path 'target_summary.csv', emit: target_summary
+        path 'sample_summary.csv', emit: sample_summary
+    script:
+    """
+    build_tables.py \
+        --target_summary $target_summary \
+        --on_off $on_off \
+        --seq_summary $seq_summary
+    """
+}
+
 process makeReport {
    label "cas9"
     input:
@@ -336,7 +355,6 @@ process makeReport {
         path off_target_hotspots
         path coverage_summary
         path on_off
-        path aln_stats
 
     output:
         path "wf-cas9-*.html", emit: report
@@ -357,7 +375,6 @@ process makeReport {
         --sample_ids $sids \
         --coverage_summary $coverage_summary \
         --on_off $on_off \
-        --aln_stats $aln_stats \
         ${opttcov} \
         ${optbcov} \
         ${optbghot}
@@ -436,16 +453,20 @@ workflow pipeline {
             bg_hotspots = file("$projectDir/data/OPTIONAL_FILE2")
         }
 
+        build_tables(
+            coverage_summary.out.on_off.collectFile(name: 'on_off'),
+            align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true),
+            target_summary.out.table.collectFile(name: 'target_summary'))
+
         report = makeReport(software_versions,
                     workflow_params,
                     summariseReads.out.stats.toList().transpose().toList(),
                     tar_cov_tsv,
-                    target_summary.out.table.collectFile(name: 'target_summary'),
+                    build_tables.out.target_summary,
                     bg_cov,
                     bg_hotspots,
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
-                    coverage_summary.out.on_off.collectFile(name: 'on_off'),
-                    align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true))
+                    coverage_summary.out.on_off.collectFile(name: 'on_off'))
 
         results = get_on_target_reads.out
              .concat(summariseReads.out.stats)
