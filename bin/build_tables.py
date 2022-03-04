@@ -18,6 +18,7 @@ def main(target_summary, on_off_bed, read_summ):
         index_col=False)
 
     stats_df = pd.read_csv(read_summ, sep='\t', index_col=False)
+    stats_df.rename(columns={stats_df.columns[-1]: 'sample_id'}, inplace=True)
     df_on_off = df_ono_ff.merge(
         stats_df[['name', 'read_length', 'acc']],
         left_on='read_id', right_on='name')
@@ -85,14 +86,35 @@ def main(target_summary, on_off_bed, read_summ):
     dummy.to_csv('sample_summary.csv'
     )
 
+    # Get the sample summary
+    reads_per_sample = stats_df.groupby('sample_id')['read_length'].count()
+    s_kbases = df_on_off.groupby('sample_id')['read_length'].sum() / 1000
+    s_mean_read_len = stats_df.groupby('sample_id')['read_length'].mean()
+    s_acc = stats_df.groupby('sample_id')['acc'].mean()
+    s_bias = main_df.groupby(['sample_id']).mean()[['p', 'n']
+    s_bias = s_bias['p'] - s_bias['n']
+
+    # Build the summary cs
+
+    ...
+
+
+
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--target_summary", help="Target summary bed.")
-    parser.add_argument(
-        "--seq_summary", help="Seq summary from pomoxis/stats_from_bam.")
-    parser.add_argument(
-        "--on_off", help="bed file of xx .")
-    args = parser.parse_args()
-    main(args.target_summary, args.on_off, args.seq_summary)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument(
+    #     "--target_summary", help="Target summary bed.")
+    # parser.add_argument(
+    #     "--seq_summary", help="Seq summary from pomoxis/stats_from_bam.")
+    # parser.add_argument(
+    #     "--on_off", help="bed file of xx .")
+    # args = parser.parse_args()
+    # main(args.target_summary, args.on_off, args.seq_summary)
+    from pathlib import Path
+    dir_ = Path('/Volumes/Groups/custflow/active/nhorner/wf-cas9-stuff/work/d5/07b8d6b482f9c593aab5ff31f3875c')
+    on_off = dir_ / 'on_off'
+    summary = dir_ / 'sample_1'
+    table = dir_ / 'target_summary'
+    main(table, on_off, summary)
