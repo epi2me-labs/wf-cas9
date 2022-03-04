@@ -8,6 +8,7 @@ from typing import List
 from aplanat import hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
+from aplanat.components.fastcat import read_length_plot, read_quality_plot
 from aplanat.report import WFReport
 from bokeh.layouts import gridplot
 from bokeh.models import Legend, Panel, Tabs
@@ -320,8 +321,6 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
 
     :param background: fill in
     :param nreads_cutoff: threshold for inclusion in background hotspot table
-
-    Using aplanat.report.FilterableTable to crate a column-searchable table.
     """
     section = report.add_section()
     section.markdown('''
@@ -347,8 +346,22 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
         # Just a few rows for init view until we can use tables in tabs
         tab_params = {'pageLength': 15}
         section.markdown(f'Sample: {id_}')
-        section.filterable_table(df, index=False, table_params=tab_params)
+        section.table(df, index=False, table_params=tab_params)
 
+def seq_stats_tabs(report: WFReport, sample_ids: List, stats: Path):
+    tabs = []
+    for id_, summ in sorted(zip(sample_ids, stats)):
+        df_sum = pd.read_csv(summ, index_col=False, sep='\t')
+        rlp = read_length_plot(df_sum)
+        rqp = read_quality_plot(df_sum)
+        grid = gridplot(
+            [rlp, rqp], ncols=2, sizing_mode="stretch_width")
+
+        tabs.append(Panel(child=grid, title=id_))
+    section = report.add_section()
+    section.markdown("""
+    Sequence summaries""")
+    section.plot(Tabs(tabs=tabs))
 
 def main():
     """Run the entry point."""
@@ -410,12 +423,8 @@ def main():
     # Add reads summary section
     section = report.add_section()
     section.markdown("### Read stats")
-    for id_, summ in sorted(zip(args.sample_ids, args.summaries)):
-        report.add_section(
-            section=fastcat.full_report(
-                [summ],
-                header="{}".format(id_)
-            ))
+
+    seq_stats_tabs(report, args.sample_ids, args.summaries)
 
     make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
                                 args.summaries, args.on_off)
