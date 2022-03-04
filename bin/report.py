@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import List
 
 from aplanat import hist, lines
-from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.components.fastcat import read_length_plot, read_quality_plot
 from aplanat.report import WFReport
@@ -348,7 +347,9 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
         section.markdown(f'Sample: {id_}')
         section.table(df, index=False, table_params=tab_params)
 
+
 def seq_stats_tabs(report: WFReport, sample_ids: List, stats: Path):
+    """Make tabs of sequence summaries by sample."""
     tabs = []
     for id_, summ in sorted(zip(sample_ids, stats)):
         df_sum = pd.read_csv(summ, index_col=False, sep='\t')
@@ -360,8 +361,9 @@ def seq_stats_tabs(report: WFReport, sample_ids: List, stats: Path):
         tabs.append(Panel(child=grid, title=id_))
     section = report.add_section()
     section.markdown("""
-    Sequence summaries""")
+    ### Sequence summaries""")
     section.plot(Tabs(tabs=tabs))
+
 
 def main():
     """Run the entry point."""
@@ -421,9 +423,6 @@ def main():
     ''')
 
     # Add reads summary section
-    section = report.add_section()
-    section.markdown("### Read stats")
-
     seq_stats_tabs(report, args.sample_ids, args.summaries)
 
     make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
