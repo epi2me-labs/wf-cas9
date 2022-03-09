@@ -106,17 +106,17 @@ process align_reads {
         path reference
         tuple val(sample_id), path(fastq_reads)
     output:
-        tuple val(sample_id), path("${sample_id}_align_acc.csv"), emit: aln_stats
+        path "${sample_id}_aln_stats.csv", emit: aln_stats
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
     script:
     """
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
     bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
-    #stats_from_bam ${sample_id}.sam | awk -F'\t' '{ print \$1,\$12,\$18}' OFS='\t' > ${sample_id}_align_acc.csv
-    stats_from_bam ${sample_id}.sam > ${sample_id}_align_acc.csv
-    sed "s/\$/\t${sample_id}/" ${sample_id}_align_acc.csv > tmp
-    mv tmp ${sample_id}_align_acc.csv
+    stats_from_bam ${sample_id}.sam > ${sample_id}_aln_stats.csv
+    # Add sample id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_aln_stats.csv > tmp
+    mv tmp ${sample_id}_aln_stats.csv
     """
 }
 
@@ -328,7 +328,7 @@ process build_tables {
     label "cas9"
     input:
         path on_off
-        path seq_summary
+        path aln_summary
         path target_summary
     output:
         path 'target_summary.csv', emit: target_summary
@@ -338,7 +338,7 @@ process build_tables {
     build_tables.py \
         --target_summary $target_summary \
         --on_off $on_off \
-        --seq_summary $seq_summary
+        --aln_summary $aln_summary
     """
 }
 
