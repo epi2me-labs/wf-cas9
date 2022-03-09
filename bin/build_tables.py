@@ -89,12 +89,7 @@ def main(target_summary, on_off_bed, aln_sum):
         df_all = pd.DataFrame()
     df_all.to_csv('target_summary.csv', index=False)
 
-    # Get the sample summary
-    stats_df = stats_df.astype({
-        'read_length': int,
-        'acc': float})
-
-    # reads_per_sample = df_all.groupby('sample').sum()['nreads']
+    # Convert some of the target summary data to sample summary data.
     gb = df_all.groupby('sample')
     dfs = []
     for sid, df in gb:
@@ -103,15 +98,18 @@ def main(target_summary, on_off_bed, aln_sum):
             df['kbases'] * (df['nreads'] / df['nreads'].sum())
         sdf['mean_read_length'] =\
             df['mean_read_length'] * (df['nreads'] / df['nreads'].sum())
-        sdf['s_mean_acc'] =\
+        sdf['mean_acc'] =\
             df['mean_acc'] * (df['nreads'] / df['nreads'].sum())
         sdf['strand_bias'] =\
             df['strand_bias'] * (df['nreads'] / df['nreads'].sum())
         sample_df = sdf.sum()
+        sample_df['nreads'] = df['nreads'].sum()
+        sample_df = sample_df.round(2)
         sample_df['sample_id'] = sid
         dfs.append(sample_df)
 
     sample_summary = pd.concat(dfs, axis=1).T
+
     sample_summary.set_index('sample_id', drop=True, inplace=True)
 
     sample_summary.to_csv('sample_summary.csv')
