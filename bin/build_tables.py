@@ -98,17 +98,16 @@ def main(target_summary, on_off_bed, aln_sum):
     gb = df_all.groupby('sample')
     dfs = []
     for sid, df in gb:
-        df['s_kbases'] =\
+        sdf = pd.DataFrame()
+        sdf['kbases'] =\
             df['kbases'] * (df['nreads'] / df['nreads'].sum())
-        df['s_mean_read_length'] =\
+        sdf['mean_read_length'] =\
             df['mean_read_length'] * (df['nreads'] / df['nreads'].sum())
-        df['s_mean_acc'] =\
+        sdf['s_mean_acc'] =\
             df['mean_acc'] * (df['nreads'] / df['nreads'].sum())
-        df['s_strand_bias'] =\
+        sdf['strand_bias'] =\
             df['strand_bias'] * (df['nreads'] / df['nreads'].sum())
-        sample_df = df[[
-            's_kbases', 's_mean_read_length', 's_mean_acc', 's_strand_bias']]
-        sample_df = sample_df.sum()
+        sample_df = sdf.sum()
         sample_df['sample_id'] = sid
         dfs.append(sample_df)
 
