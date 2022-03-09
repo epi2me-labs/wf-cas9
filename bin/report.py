@@ -370,13 +370,11 @@ def main():
         report, args.sample_ids, args.coverage_summary, args.summaries,
         args.on_off)
 
-    make_target_summary_table(
-        report, args.sample_ids, args.target_summary, args.summaries,
-        args.on_off)
     make_target_summary_table(report, args.target_summary)
 
-    make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
-                                args.summaries, args.on_off)
+    make_coverage_summary_table(
+        report, args.sample_ids, args.coverage_summary,
+        args.summaries, args.on_off)
 
     if args.target_coverage:
         plot_target_coverage(report, args.target_coverage)
