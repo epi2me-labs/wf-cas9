@@ -2,14 +2,16 @@
 """build summary tables for report and output CSVs."""
 
 import argparse
-import pandas as pd
+
 from natsort import natsort_keygen
+import pandas as pd
 
 
 def main(target_summary, on_off_bed, aln_sum):
     """Entry point."""
-    header = ['chr', 'start', 'end', 'target', 'nreads', 'nbases',
-              'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id']
+    header = [
+        'chr', 'start', 'end', 'target', 'nreads', 'nbases',
+        'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id']
 
     frames = []
 
@@ -97,7 +99,7 @@ def main(target_summary, on_off_bed, aln_sum):
     dfs = []
     for sid, df in gb:
         df['s_kbases'] = df['kbases'] * (
-                df['nreads'] / df['nreads'].sum())
+            df['nreads'] / df['nreads'].sum())
         df['s_mean_read_length'] = df['mean_read_length'] * (
                     df['nreads'] / df['nreads'].sum())
         df['s_mean_acc'] = df['mean_acc'] * (
