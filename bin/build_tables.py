@@ -92,26 +92,27 @@ def main(target_summary, on_off_bed, aln_sum):
         'read_length': int,
         'acc': float})
 
-    reads_per_sample = stats_df.groupby('sample_id')['read_length'].count()
-    s_kbases = df_on_off.groupby('sample_id')['read_length'].sum() / 1000
-    s_mean_read_len = stats_df.groupby('sample_id')['read_length'].mean()
-    s_acc = stats_df.groupby('sample_id')['acc'].mean()
+    # reads_per_sample = df_all.groupby('sample').sum()['nreads']
+    gb = df_all.groupby('sample')
+    dfs = []
+    for sid, df in gb:
+        df['s_kbases'] = df['kbases'] * (
+                df['nreads'] / df['nreads'].sum())
+        df['s_mean_read_length'] = df['mean_read_length'] * (
+                    df['nreads'] / df['nreads'].sum())
+        df['s_mean_acc'] = df['mean_acc'] * (
+                    df['nreads'] / df['nreads'].sum())
+        df['s_strand_bias'] = df['strand_bias'] * (
+                    df['nreads'] / df['nreads'].sum())
+        sample_df = df[['s_kbases', 's_mean_read_length', 's_mean_acc',
+                      's_strand_bias']]
+        sample_df = sample_df.sum()
+        sample_df['sample_id'] = sid
+        dfs.append(sample_df)
 
-    # Merge the target name onto the stats to get reads that map to a target
-    stats_df = stats_df.merge(df_on_off[pd.notna(df_on_off.target)][['name', 'target']], left_on='name', right_on='name', how='right')
-    stats_df['p'] = stats_df.direction.map(lambda x: 1 if x == '+' else 0)
-    stats_df['n'] = stats_df.direction.map(lambda x: 1 if x == '-' else 0)
-    s_bias = stats_df.groupby(['sample_id']).sum()[['p', 'n']]
-    s_bias['bias'] = (s_bias.p - s_bias.n) / (s_bias.p + s_bias.n)
+    sample_summary = pd.concat(dfs, axis=1).T
+    sample_summary.set_index('sample_id', drop=True, inplace=True)
 
-    # Build the summary cs
-    sample_summary = pd.DataFrame({
-        'reads': reads_per_sample,
-        'kbases': s_kbases,
-        'mean_read_length': s_mean_read_len,
-        'mean_accuracy': s_acc,
-        'strand_bias': s_bias['bias']
-    })
     sample_summary.to_csv('sample_summary.csv')
 
 
@@ -125,9 +126,3 @@ if __name__ == '__main__':
         "--on_off", help="bed file of xx .")
     args = parser.parse_args()
     main(args.target_summary, args.on_off, args.aln_summary)
-    # from pathlib import Path
-    # dir_ = Path('/Volumes/Groups/custflow/active/nhorner/wf-cas9-stuff/work/e8/35adbc9e77237d9d9d63a317cb8980')
-    # on_off = dir_ / 'on_off'
-    # summary = dir_ / 'aln_stats'
-    # table = dir_ / 'target_summary'
-    # main(table, on_off, summary)
