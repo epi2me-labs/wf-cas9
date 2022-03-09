@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import List
 
 from aplanat import hist, lines
-from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
+from aplanat.components.fastcat import read_length_plot, read_quality_plot
 from aplanat.report import WFReport
 from bokeh.layouts import gridplot
 from bokeh.models import Legend, Panel, Tabs
@@ -30,8 +30,9 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
     in discretized bins of 100 bp.
     ''')
 
-    header = ["chr", "start", "end", "target", "coverage_f", 'coverage_r',
-              "sample_id"]
+    header = [
+        "chr", "start", "end", "target", "coverage_f", 'coverage_r',
+        "sample_id"]
     tabs = []
     main_df = pd.read_csv(target_coverages, names=header, sep='\t')
     for id_, df in main_df.groupby('sample_id'):
@@ -83,11 +84,12 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
     section.plot(cover_panel)
 
 
-def make_coverage_summary_table(report: WFReport,
-                                sample_ids: List[str],
-                                table_file: Path,
-                                seq_stats: List[Path],
-                                on_offs: Path):
+def make_coverage_summary_table(
+        report: WFReport,
+        sample_ids: List[str],
+        table_file: Path,
+        seq_stats: List[Path],
+        on_offs: Path):
     """
     Summary table detailing all on and off target reads.
 
@@ -189,8 +191,8 @@ def make_target_summary_table(report: WFReport, summary_table):
     section.table(df, searchable=True, paging=True, index=False)
 
 
-def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
-                             target_coverage: List[Path]):
+def plot_tiled_coverage_hist(
+        report: WFReport, background: List[Path], target_coverage: List[Path]):
     """Coverage histograms.
 
     Show on-target and off-target (proximal removed) coverage
@@ -215,10 +217,12 @@ def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
 
             ''')
 
-    header_target = ["chr", "start", "end", "target", "coverage_f",
-                     'coverage_r', 'sample_id']
-    header_background = ['chr', 'start', 'end', 'tile_name', '#reads',
-                         '#bases_cov', 'tileLen', 'fracTileAln', 'sample_id']
+    header_target = [
+        "chr", "start", "end", "target", "coverage_f", 'coverage_r',
+        'sample_id']
+    header_background = [
+        'chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov', 'tileLen',
+        'fracTileAln', 'sample_id']
 
     plots = []
 
@@ -251,8 +255,8 @@ def plot_tiled_coverage_hist(report: WFReport, background: List[Path],
     section.plot(grid)
 
 
-def make_offtarget_hotspot_table(report: WFReport, background: Path,
-                                 nreads_cutoff=10):
+def make_offtarget_hotspot_table(
+        report: WFReport, background: Path, nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
 
     :param background: fill in
@@ -283,6 +287,23 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
         tab_params = {'pageLength': 15}
         section.markdown(f'Sample: {id_}')
         section.table(df, index=False, table_params=tab_params)
+
+
+def seq_stats_tabs(report: WFReport, sample_ids: List, stats: Path):
+    """Make tabs of sequence summaries by sample."""
+    tabs = []
+    for id_, summ in sorted(zip(sample_ids, stats)):
+        df_sum = pd.read_csv(summ, index_col=False, sep='\t')
+        rlp = read_length_plot(df_sum)
+        rqp = read_quality_plot(df_sum)
+        grid = gridplot(
+            [rlp, rqp], ncols=2, sizing_mode="stretch_width")
+
+        tabs.append(Panel(child=grid, title=id_))
+    section = report.add_section()
+    section.markdown("""
+    ### Sequence summaries""")
+    section.plot(Tabs(tabs=tabs))
 
 
 def main():
@@ -343,15 +364,15 @@ def main():
     ''')
 
     # Add reads summary section
-    section = report.add_section()
-    section.markdown("### Read stats")
-    for id_, summ in sorted(zip(args.sample_ids, args.summaries)):
-        report.add_section(
-            section=fastcat.full_report(
-                [summ],
-                header="{}".format(id_)
-            ))
+    seq_stats_tabs(report, args.sample_ids, args.summaries)
 
+    make_coverage_summary_table(
+        report, args.sample_ids, args.coverage_summary, args.summaries,
+        args.on_off)
+
+    make_target_summary_table(
+        report, args.sample_ids, args.target_summary, args.summaries,
+        args.on_off)
     make_target_summary_table(report, args.target_summary)
 
     make_coverage_summary_table(report, args.sample_ids, args.coverage_summary,
