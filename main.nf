@@ -229,7 +229,7 @@ process target_summary {
     paste target_summary_temp.bed \
         median_coverage.bed \
         pos.bed \
-        neg.bed  > ${sample_id}_target_summary.bed
+        neg.bed > ${sample_id}_target_summary.bed
 
     # Add sample_id column
     sed "s/\$/\t${sample_id}/" ${sample_id}_target_summary.bed > tmp
@@ -335,7 +335,7 @@ process build_tables {
         path 'sample_summary.csv', emit: sample_summary
     script:
     """
-    build_tables.py \
+    python build_tables.py \
         --target_summary $target_summary \
         --on_off $on_off \
         --aln_summary $aln_summary
