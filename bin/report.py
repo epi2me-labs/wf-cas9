@@ -160,11 +160,7 @@ def make_coverage_summary_table(
     section.table(df_all_samples, searchable=True, paging=True, index=False)
 
 
-def make_target_summary_table(
-        report: WFReport,
-        sample_ids: List,
-        table_file: Path,
-        seq_stats, on_off_bed):
+def make_target_summary_table(report: WFReport, summary_table):
     """Create a table of target summary statistics.
 
     TODO: missing mean accuracy column
@@ -175,86 +171,24 @@ def make_target_summary_table(
 
         This table provides a summary of all the target region detailing:
 
-        * chr, start, end: the location of the target region.
-        * \\#reads: number of reads mapped to target region.
-        * \\#basesCov: number of bases in target with at least 1x coverage.
-        * targetLen: length of target region.
-        * fracTargAln: proportion of the target with at least 1x coverage.
-        * medianCov: median coverage of 100 bp bins.
-        * meanReadlen: mean read length of reads mapping to target.
-        * strandBias: proportional difference of reads aligning to each strand.
-            A value or +1 or -1 indicates complete bias to the foward or
+        * chr, start, end: target location.
+        * target: the target name
+        * nreads: number of reads aligning.
+        * coverage_frac: fraction of bases within target with non-zero
+          coverage.
+        * tsize: length of target (in bases).
+        * median_cov: average read depth across target.
+        * mean_read_length:  average read length of reads aligning.
+        * mean_acc: average mapping quality scores.
+        * strand_bias: proportional difference of reads aligning to each
+          strand.
+            A value or +1 or -1 indicates complete bias to the forward or
             reverse strand respectively.
-        * kbases: kbases of total reads mapped to target.
+        * kbases: number of bases in reads overlapping target.
         ''')
 
-    # Note meanAlnLen: needs to be switched to meanreadLen in next version
-    header = [
-        'chr', 'start', 'end', 'target', '#reads', '#basesCov', 'targetLen',
-        'fracTargAln', 'medianCov', 'p', 'n', 'sample_id']
-
-    frames = []
-    id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
-
-    df_onoff = pd.read_csv(
-        on_off_bed, sep='\t',
-        names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
-        index_col=False)
-
-    main_df = pd.read_csv(
-        table_file, sep='\t', names=header, index_col=False)
-
-    for id_, df in main_df.groupby('sample_id'):
-        df = df.drop(columns=['sample_id'])
-        if len(df) == 0:
-            continue
-
-        df_stats = pd.read_csv(id_stats[id_], sep='\t')
-        df_on_off = df_onoff.merge(
-            df_stats[['read_id', 'read_length']],
-            left_on='read_id', right_on='read_id')
-
-        read_len = df_on_off.groupby(['target']).mean()[['read_length']]
-        read_len.columns = ['meanReadLen']
-        if len(read_len) > 0:
-            df = df.merge(read_len, left_on='target', right_index=True)
-        else:
-            df['meanReadLen'] = 0
-
-        kbases = df_on_off.groupby(['target']).sum()[['read_length']] / 1000
-        kbases.columns = ['kbases']
-        if len(kbases) > 0:
-            df = df.merge(kbases, left_on='target', right_index=True)
-        else:
-            df['kbases'] = 0
-
-        df['strandBias'] = (df.p - df.n) / (df.p + df.n)
-        df.drop(columns=['p', 'n'], inplace=True)
-        df.insert(0, 'sample', id_)
-        frames.append(df)
-
-    if len(frames) > 0:
-        df_all = pd.concat(frames)
-        df_all = df_all.astype({
-            'start': int,
-            'end': int,
-            '#reads': int,
-            '#basesCov': int,
-            'targetLen': int
-        })
-
-        df_all = df_all.round({
-            'strandBias': 2,
-            'fracTargAln': 2,
-            'kbases': 2,
-            'meanReadLen': 1})
-
-        df_all.sort_values(
-            by=["sample", "chr", "start"], key=natsort_keygen(), inplace=True)
-    else:
-        df_all = pd.DataFrame()
-
-    section.table(df_all, searchable=True, paging=True)
+    df = pd.read_csv(summary_table, index_col=False)
+    section.table(df, searchable=True, paging=True, index=False)
 
 
 def plot_tiled_coverage_hist(
@@ -436,9 +370,11 @@ def main():
         report, args.sample_ids, args.coverage_summary, args.summaries,
         args.on_off)
 
-    make_target_summary_table(
-        report, args.sample_ids, args.target_summary, args.summaries,
-        args.on_off)
+    make_target_summary_table(report, args.target_summary)
+
+    make_coverage_summary_table(
+        report, args.sample_ids, args.coverage_summary,
+        args.summaries, args.on_off)
 
     if args.target_coverage:
         plot_target_coverage(report, args.target_coverage)

@@ -100,27 +100,23 @@ process build_index{
 }
 
 process align_reads {
-    /*
-    TODO: The number of off-target is quite a lot higher than in the tutorial
-    Tutorial uses mini_align rather than minimap2 directly.
-
-    mini_align \
-    -r "$reference_genome" -i "$input_file" \
-    -p "$output_folder/alignments" \
-    -t 4 -m
-    */
     label "cas9"
     input:
         path index
         path reference
         tuple val(sample_id), path(fastq_reads)
     output:
-        tuple val(sample_id), path("${sample_id}.sam"), emit: sam
+        path "${sample_id}_aln_stats.csv", emit: aln_stats
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
     script:
     """
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
     bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
+    # Get a csv with columns: [read_id, alignment_accuracy]
+    stats_from_bam ${sample_id}.sam > ${sample_id}_aln_stats.csv
+    # Add sample id column
+    sed "s/\$/\t${sample_id}/" ${sample_id}_aln_stats.csv > tmp
+    mv tmp ${sample_id}_aln_stats.csv
     """
 }
 
@@ -213,10 +209,9 @@ process target_summary {
     script:
     """
     # Map targets to aln.
-    # If the output is empty, there are no reads intersecting targets. In this case output an empty table file
     cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
 
-    # chr, start, stop (target), target, overlaps, covered_bases, len(target), frac_covered
+    # chr, start, stop, target, overlaps, covered_bases, len(target), frac_covered
     # This forms first few columns of output table
     bedtools coverage -a $targets -b $aln > target_summary_temp.bed
 
@@ -224,11 +219,9 @@ process target_summary {
     cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
 
     # Get median coverage (col 9) by target (col 8)
-
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Strand bias
-
     cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a $targets | cut -f 5  > pos.bed  || true
 
     cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
@@ -328,6 +321,24 @@ process get_on_target_reads {
     """
     cat $on_bed | cut -f 4 > seqids
     cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
+    """
+}
+
+process build_tables {
+    label "cas9"
+    input:
+        path on_off
+        path aln_summary
+        path target_summary
+    output:
+        path 'target_summary.csv', emit: target_summary
+        path 'sample_summary.csv', emit: sample_summary
+    script:
+    """
+    build_tables.py \
+        --target_summary $target_summary \
+        --on_off $on_off \
+        --aln_summary $aln_summary
     """
 }
 
@@ -442,21 +453,26 @@ workflow pipeline {
             bg_hotspots = file("$projectDir/data/OPTIONAL_FILE2")
         }
 
+        build_tables(
+            coverage_summary.out.on_off.collectFile(name: 'on_off'),
+            align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true),
+            target_summary.out.table.collectFile(name: 'target_summary'))
+
         report = makeReport(software_versions,
                     workflow_params,
                     summariseReads.out.stats.toList().transpose().toList(),
                     tar_cov_tsv,
-                    target_summary.out.table.collectFile(name: 'target_summary'),
+                    build_tables.out.target_summary,
                     bg_cov,
                     bg_hotspots,
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
-                    coverage_summary.out.on_off.collectFile(name: 'on_off'),
-                    )
+                    coverage_summary.out.on_off.collectFile(name: 'on_off'))
 
         results = get_on_target_reads.out
              .concat(summariseReads.out.stats)
              .map {it -> it[1]} // Remove sample id from tuples
-             .concat(makeReport.out.report)
+             .concat(makeReport.out.report,
+             build_tables.out.sample_summary)
 
     emit:
         results
