@@ -257,8 +257,6 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
 
     :param background: fill in
     :param nreads_cutoff: threshold for inclusion in background hotspot table
-
-    Using aplanat.report.FilterableTable to crate a column-searchable table.
     """
     section = report.add_section()
     section.markdown('''
@@ -284,7 +282,7 @@ def make_offtarget_hotspot_table(report: WFReport, background: Path,
         # Just a few rows for init view until we can use tables in tabs
         tab_params = {'pageLength': 15}
         section.markdown(f'Sample: {id_}')
-        section.filterable_table(df, index=False, table_params=tab_params)
+        section.table(df, index=False, table_params=tab_params)
 
 
 def main():
