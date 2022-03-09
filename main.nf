@@ -335,7 +335,7 @@ process build_tables {
         path 'sample_summary.csv', emit: sample_summary
     script:
     """
-    python build_tables.py \
+    build_tables.py \
         --target_summary $target_summary \
         --on_off $on_off \
         --aln_summary $aln_summary
