@@ -130,5 +130,9 @@
         "show_hidden_params": {
             "type": "boolean"
         }
+    },
+    "docs": {
+        "intro": "## Introduction\nThis workflow generated a report summarising the results of Cas9 enrichment sequencing.\n\nUsers provide a reference genome, fastq ONT reads, and a bed file containing enrichment regions. \nThe reads are first mapped the reference genome using [minimap2](https://github.com/lh3/minimap2), and \nvarious plots and tables are generated summarizing the enrichment results.\n",
+        "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [conda](https://docs.conda.io/en/latest/miniconda.html)"
     }
 }

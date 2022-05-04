@@ -1,12 +1,3 @@
-# wf-cas9
-
-This repository contains a [nextflow](https://www.nextflow.io/) workflow
-for the multiplexed analysis of Cas9-enrichment sequencingß. ## Introduction
-This workflow generated a report summarising the results of Cas9 enrichment sequencing.
-
-Users provide a reference genome, fastq ONT reads, and a bed file containing enrichment regions. 
-The reads are first mapped the reference genome using [minimap2](https://github.com/lh3/minimap2), and 
-various plots and tables are generated summarizing the enrichment results.
 ## Quickstart
 
 The workflow uses [nextflow](https://www.nextflow.io/) to manage compute and 
@@ -71,8 +62,3 @@ HTML report:
 * plots of stranded coverage at each target.
 * histograms of on and off-target coverage for each sample.
 * off-target hotspot region tables.
-## Useful links
-
-* [nextflow](https://www.nextflow.io/)
-* [docker](https://www.docker.com/products/docker-desktop)
-* [conda](https://docs.conda.io/en/latest/miniconda.html)
