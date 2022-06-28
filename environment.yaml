@@ -15,4 +15,3 @@ dependencies:
     - natsort
     - minimap2
     - seqkit
-    - pomoxis

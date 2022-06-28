@@ -21,7 +21,7 @@ def main(target_summary, on_off_bed, aln_sum):
         index_col=False)
 
     stats_df = pd.read_csv(aln_sum, sep='\t', index_col=False)
-    stats_df.rename(columns={stats_df.columns[-1]: 'sample_id'}, inplace=True)
+
     df_on_off = df_ono_ff.merge(
         stats_df[['name', 'read_length', 'acc']],
         left_on='read_id', right_on='name')
