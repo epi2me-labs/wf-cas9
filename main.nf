@@ -115,7 +115,7 @@ process align_reads {
         bedtools bamtobed -i stdin | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
     samtools index ${sample_id}.bam
-    bamstats ${sample_id}.bam | cut -f 1,12,18 | \
+    bamstats ${sample_id}.bam | \
         # Add sample id column
         sed "s/\$/\t${sample_id}/" | \
         # Fix header
