@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unreleased]
 ### Changed
 - Better help text on cli
+- Replace pomoxis/stas_from_bam with fastcat/bamstats
 
 ## [v0.1.2]
 ### Added
