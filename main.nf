@@ -110,13 +110,16 @@ process align_reads {
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
     script:
     """
-    minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads > ${sample_id}.sam
-    bedtools bamtobed -i ${sample_id}.sam | bedtools sort > ${sample_id}_fastq_pass.bed
+    minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads | \
+        samtools view -b | samtools sort - | tee ${sample_id}.bam | \
+        bedtools bamtobed -i stdin | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
-    stats_from_bam ${sample_id}.sam > ${sample_id}_aln_stats.csv
-    # Add sample id column
-    sed "s/\$/\t${sample_id}/" ${sample_id}_aln_stats.csv > tmp
-    mv tmp ${sample_id}_aln_stats.csv
+    samtools index ${sample_id}.bam
+    bamstats ${sample_id}.bam | \
+        # Add sample id column
+        sed "s/\$/\t${sample_id}/" | \
+        # Fix header
+        sed '1s/${sample_id}/sample_id/' > ${sample_id}_aln_stats.csv
     """
 }
 
