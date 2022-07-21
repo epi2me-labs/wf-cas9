@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
 // Developer notes
-// 
+//
 // This template workflow provides a basic structure to copy in order
 // to create a new workflow. Current recommended pratices are:
 //     i) create a simple command-line interface.
@@ -26,14 +26,14 @@ process summariseReads {
    label "cas9"
     cpus 1
     input:
-        tuple path(directory), val(sample_id), val(type)
+        tuple path(directory), val(meta)
     output:
-        tuple val(sample_id), path("${sample_id}.stats"), emit: stats
-        tuple val(sample_id), path("${sample_id}.fastq"), emit: reads
+        tuple val(meta.sample_id), path("${meta.sample_id}.stats"), emit: stats
+        tuple val(meta.sample_id), path("${meta.sample_id}.fastq"), emit: reads
 
     shell:
     """
-    fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} > "${sample_id}.fastq"
+    fastcat -s ${meta.sample_id} -r ${meta.sample_id}.stats -x ${directory} > "${meta.sample_id}.fastq"
     """
 }
 
@@ -505,9 +505,12 @@ workflow {
         exit 1
     }
 
-    samples = fastq_ingress(
-        params.fastq, params.out_dir, params.sample, params.sample_sheet, params.sanitize_fastq)
-
+    samples = fastq_ingress([
+        "input":params.fastq,
+        "sample":params.sample,
+        "sample_sheet":params.sample_sheet,
+        "sanitize": params.sanitize_fastq,
+        "output":params.out_dir])
 
     pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
