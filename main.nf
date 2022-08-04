@@ -475,7 +475,8 @@ workflow pipeline {
              .concat(summariseReads.out.stats)
              .map {it -> it[1]} // Remove sample id from tuples
              .concat(makeReport.out.report,
-             build_tables.out.sample_summary)
+             build_tables.out.sample_summary,
+             build_tables.out.target_summary)
 
     emit:
         results
