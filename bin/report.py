@@ -161,10 +161,8 @@ def make_coverage_summary_table(
 
 
 def make_target_summary_table(report: WFReport, summary_table):
-    """Create a table of target summary statistics.
-
-    TODO: missing mean accuracy column
-    """
+    """Create a table of target summary statistics."""
+    
     section = report.add_section()
     section.markdown('''
         ### Target regions summary
@@ -188,6 +186,10 @@ def make_target_summary_table(report: WFReport, summary_table):
         ''')
 
     df = pd.read_csv(summary_table, index_col=False)
+    df = df.astype({
+        'kbases': int,
+        'mean_read_length': int
+    })
     section.table(df, searchable=True, paging=True, index=False)
 
 

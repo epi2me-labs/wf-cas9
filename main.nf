@@ -319,11 +319,20 @@ process get_on_target_reads {
               path(fastq),
               path(on_bed)
     output:
-         tuple val(sample_id), path("${sample_id}_ontarget.fastq"), emit: fastq
+         tuple val(sample_id), 
+               path("${sample_id}_ontarget.fastq"), 
+               emit: ontarget_fastq_dir
     script:
     """
-    cat $on_bed | cut -f 4 > seqids
-    cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
+    mkdir ontarget_beds
+    awk '{print >> "ontarget_beds/"\$5".bed"; close("ontarget_beds/"\$5".bed")}' on.bed
+
+    # Is there a way to do this wiythout having to cat the reads for each target?
+    mkdir ontarget_fastq
+    for target_bed in ontarget_beds/*.bed; do
+        cat \$target_bed | cut -f 4 > seqids
+        cat $fastq | seqkit grep -f seqids -o "ontarget_fastq/${sample_id}_\${target_bed}_ontarget.fastq"
+    done
     """
 }
 
@@ -381,6 +390,21 @@ process makeReport {
         ${opttcov} \
         ${optbcov} \
         ${optbghot}
+    """
+}
+
+process pack_files_into_sample_dirs {
+    label "cas9"
+    input:
+        tuple val(sample_id),
+              path(sample_files)
+    output:
+        path ("*results"), emit: results_dir
+    """
+    mkdir $sample_id
+    for file in $sample_files; do
+        mv \$file $sample_id
+    done;
     """
 }
 
@@ -471,12 +495,24 @@ workflow pipeline {
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
                     coverage_summary.out.on_off.collectFile(name: 'on_off'))
 
+        pack_files_into_sample_dirs(
+            get_on_target_reads.out.ontarget_fastq_dir
+            .join(summariseReads.out.stats)
+        )
+
         results = get_on_target_reads.out
-             .concat(summariseReads.out.stats)
-             .map {it -> it[1]} // Remove sample id from tuples
-             .concat(makeReport.out.report,
+            .concat(summariseReads.out.stats)
+            .map {it -> it[1]} // Remove sample id from tuples
+            .concat(makeReport.out.report,
              build_tables.out.sample_summary,
              build_tables.out.target_summary)
+
+        // results = get_on_target_reads.out
+        //      .concat(summariseReads.out.stats)
+        //      .map {it -> it[1]} // Remove sample id from tuples
+        //      .concat(makeReport.out.report,
+        //      build_tables.out.sample_summary,
+        //      build_tables.out.target_summary)
 
     emit:
         results
