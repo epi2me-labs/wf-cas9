@@ -327,7 +327,6 @@ process get_on_target_reads {
     mkdir ontarget_beds
     awk '{print >> "ontarget_beds/"\$5".bed"; close("ontarget_beds/"\$5".bed")}' on.bed
 
-    # Is there a way to do this wiythout having to cat the reads for each target?
     fastq_outdir=${sample_id}_ontarget_fastq
     mkdir \$fastq_outdir
     for target_bed in ontarget_beds/*.bed; do
