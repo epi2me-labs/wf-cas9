@@ -320,7 +320,7 @@ process get_on_target_reads {
               path(on_bed)
     output:
          tuple val(sample_id), 
-               path("${sample_id}_ontarget.fastq"), 
+               path("${sample_id}_ontarget_fastq/"), 
                emit: ontarget_fastq_dir
     script:
     """
@@ -328,10 +328,12 @@ process get_on_target_reads {
     awk '{print >> "ontarget_beds/"\$5".bed"; close("ontarget_beds/"\$5".bed")}' on.bed
 
     # Is there a way to do this wiythout having to cat the reads for each target?
-    mkdir ontarget_fastq
+    fastq_outdir=${sample_id}_ontarget_fastq
+    mkdir \$fastq_outdir
     for target_bed in ontarget_beds/*.bed; do
         cat \$target_bed | cut -f 4 > seqids
-        cat $fastq | seqkit grep -f seqids -o "ontarget_fastq/${sample_id}_\${target_bed}_ontarget.fastq"
+        target_bn=\$(basename \$target_bed) 
+        cat $fastq | seqkit grep -f seqids -o "\${fastq_outdir}/\${target_bn}_ontarget.fastq"
     done
     """
 }
