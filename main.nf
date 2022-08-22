@@ -401,7 +401,7 @@ process pack_files_into_sample_dirs {
         tuple val(sample_id),
               path(sample_files)
     output:
-        path ("*results"), emit: results_dir
+        path sample_id, emit: results_dir
     """
     mkdir $sample_id
     for file in $sample_files; do
@@ -499,22 +499,15 @@ workflow pipeline {
 
         pack_files_into_sample_dirs(
             get_on_target_reads.out.ontarget_fastq_dir
-            .join(summariseReads.out.stats)
-        )
-
-        results = get_on_target_reads.out
             .concat(summariseReads.out.stats)
-            .map {it -> it[1]} // Remove sample id from tuples
-            .concat(makeReport.out.report,
-             build_tables.out.sample_summary,
-             build_tables.out.target_summary)
+            .groupTuple())
 
-        // results = get_on_target_reads.out
-        //      .concat(summariseReads.out.stats)
-        //      .map {it -> it[1]} // Remove sample id from tuples
-        //      .concat(makeReport.out.report,
-        //      build_tables.out.sample_summary,
-        //      build_tables.out.target_summary)
+        pack_files_into_sample_dirs.out.results_dir.view()
+
+        results = makeReport.out.report
+             .concat(build_tables.out.sample_summary,
+             build_tables.out.target_summary,
+             pack_files_into_sample_dirs.out.results_dir)
 
     emit:
         results
