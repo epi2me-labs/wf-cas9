@@ -162,7 +162,6 @@ def make_coverage_summary_table(
 
 def make_target_summary_table(report: WFReport, summary_table):
     """Create a table of target summary statistics."""
-    
     section = report.add_section()
     section.markdown('''
         ### Target regions summary
@@ -177,7 +176,7 @@ def make_target_summary_table(report: WFReport, summary_table):
         * tsize: length of target (in bases).
         * median_cov: average read depth across target.
         * mean_read_length:  average read length of reads aligning.
-        * mean_acc: average mapping quality scores.
+        * acc: alignment accuracy.
         * strand_bias: proportional difference of reads aligning to each
           strand.
             A value or +1 or -1 indicates complete bias to the forward or

@@ -355,7 +355,8 @@ process build_tables {
     """
 }
 
-process makeReport {
+process 
+ {
    label "cas9"
     input:
         path "versions/*"
