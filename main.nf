@@ -251,20 +251,20 @@ process coverage_summary {
     output:
         path('*on_off_summ.csv'), emit: summary
         path('*on_off.bed'), emit: on_off
-        tuple val(sample_id), path('*on.bed'), emit: on
+        tuple val(sample_id), path('*on_target.bed'), emit: on_target
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
     bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 | \
      awk -F '\\t' -v OFS='\\t' '{ \$(NF+1) = OFF; print }'  > off.bed
-    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > on.bed
+    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > ${sample_id}_on_target.bed
 
-    numread_on=\$(cat on.bed | wc -l | tr -d ' ')
+    numread_on=\$(cat ${sample_id}_on_target.bed | wc -l | tr -d ' ')
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
-    cat on.bed off.bed > ${sample_id}_on_off.bed
+    cat ${sample_id}_on_target.bed off.bed > ${sample_id}_on_off.bed
 
-    bases_on=\$(cat on.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    bases_on=\$(cat ${sample_id}_on_target.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
@@ -320,20 +320,13 @@ process get_on_target_reads {
               path(on_bed)
     output:
          tuple val(sample_id), 
-               path("${sample_id}_ontarget_fastq/"), 
+               path("${sample_id}_ontarget.fastq"), 
                emit: ontarget_fastq_dir
     script:
     """
-    mkdir ontarget_beds
-    awk '{print >> "ontarget_beds/"\$5".bed"; close("ontarget_beds/"\$5".bed")}' on.bed
+    cat $on_bed | cut -f 4 > seqids
+    cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
 
-    fastq_outdir=${sample_id}_ontarget_fastq
-    mkdir \$fastq_outdir
-    for target_bed in ontarget_beds/*.bed; do
-        cat \$target_bed | cut -f 4 > seqids
-        target_bn=\$(basename \$target_bed) 
-        cat $fastq | seqkit grep -f seqids -o "\${fastq_outdir}/\${target_bn}_ontarget.fastq"
-    done
     """
 }
 
@@ -355,8 +348,7 @@ process build_tables {
     """
 }
 
-process 
- {
+process makeReport {
    label "cas9"
     input:
         path "versions/*"
@@ -451,7 +443,7 @@ workflow pipeline {
             align_reads.out.bed)
 
        get_on_target_reads(summariseReads.out.reads
-            .join(coverage_summary.out.on))
+            .join(coverage_summary.out.on_target))
 
         target_summary(targets,
             make_tiles.out.tiles,
@@ -498,11 +490,9 @@ workflow pipeline {
                     coverage_summary.out.on_off.collectFile(name: 'on_off'))
 
         pack_files_into_sample_dirs(
-            get_on_target_reads.out.ontarget_fastq_dir
-            .concat(summariseReads.out.stats)
-            .groupTuple())
-
-        pack_files_into_sample_dirs.out.results_dir.view()
+            coverage_summary.out.on_target.concat(
+            get_on_target_reads.out.ontarget_fastq_dir,
+            summariseReads.out.stats).groupTuple())
 
         results = makeReport.out.report
              .concat(build_tables.out.sample_summary,
