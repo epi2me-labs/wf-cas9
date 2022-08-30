@@ -57,10 +57,13 @@ evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
 
 The primary outputs of the workflow include:
 
-* a per-sample on-target reads fastq file. 
-* a per-sample simple text file providing a summary of sequencing reads.
+* A folder per sample containing:
+  * Bam file filtered to contain reads overallpping with targets (*_on_target.bam). 
+  * A bed file with alignment iformation for on-target reads (*on_target.bed).
+  * A simple text file providing a summary of sequencing reads (*.stats).
+* sample_summary.csv - read and alignment sumamry for each sample.
+* target_summary.csv - read and alignment summary for reads overalpping each target.
 * a combined HTML report document detailing the primary findings of the workflow across all samples.
-
 By default, the report contains sequencing quality plots and two tables that summarize targeted sequencing results:
 * on/off-target reads per sample.
 * summaries of each sample/target pair. 
