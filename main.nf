@@ -108,6 +108,7 @@ process align_reads {
     output:
         path "${sample_id}_aln_stats.csv", emit: aln_stats
         tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
+        tuple val(sample_id), path("${sample_id}.bam"), emit: bam
     script:
     """
     minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads | \
@@ -251,20 +252,20 @@ process coverage_summary {
     output:
         path('*on_off_summ.csv'), emit: summary
         path('*on_off.bed'), emit: on_off
-        tuple val(sample_id), path('*on.bed'), emit: on
+        tuple val(sample_id), path('*on_target.bed'), emit: on_target_bed
     script:
     """
     # For table with cols:  num_reads, num_bases, mean read_len
     bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 | \
      awk -F '\\t' -v OFS='\\t' '{ \$(NF+1) = OFF; print }'  > off.bed
-    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > on.bed
+    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > ${sample_id}_on_target.bed
 
-    numread_on=\$(cat on.bed | wc -l | tr -d ' ')
+    numread_on=\$(cat ${sample_id}_on_target.bed | wc -l | tr -d ' ')
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
-    cat on.bed off.bed > ${sample_id}_on_off.bed
+    cat ${sample_id}_on_target.bed off.bed > ${sample_id}_on_off.bed
 
-    bases_on=\$(cat on.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    bases_on=\$(cat ${sample_id}_on_target.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
 
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
@@ -277,6 +278,7 @@ process coverage_summary {
     mv tmp2 ${sample_id}_on_off.bed
     """
 }
+
 
 process background {
     label "cas9"
@@ -319,13 +321,35 @@ process get_on_target_reads {
               path(fastq),
               path(on_bed)
     output:
-         tuple val(sample_id), path("${sample_id}_ontarget.fastq"), emit: fastq
+         tuple val(sample_id), 
+               path("${sample_id}_ontarget.fastq"), 
+               emit: ontarget_fastq
     script:
     """
     cat $on_bed | cut -f 4 > seqids
     cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
     """
 }
+
+
+process get_on_target_bams {
+    label "cas9"
+    input:
+        tuple val(sample_id), 
+              path(on_target_bed),
+              path(bam)
+    output:
+        tuple val(sample_id),
+              path("${sample_id}_on_target.bam"),
+              emit: on_target_bam
+
+    script:    
+    """
+    samtools view $bam -L $on_target_bed \
+        -O bam > ${sample_id}_on_target.bam
+    """ 
+}
+
 
 process build_tables {
     label "cas9"
@@ -384,6 +408,21 @@ process makeReport {
     """
 }
 
+process pack_files_into_sample_dirs {
+    label "cas9"
+    input:
+        tuple val(sample_id),
+              path(sample_files)
+    output:
+        path sample_id, emit: results_dir
+    """
+    mkdir $sample_id
+    for file in $sample_files; do
+        mv \$file $sample_id
+    done;
+    """
+}
+
 // See https://github.com/nextflow-io/nextflow/issues/1636
 // This is the only way to publish files from a workflow whilst
 // decoupling the publish from the process steps.
@@ -418,14 +457,21 @@ workflow pipeline {
             ref_genome,
             summariseReads.out.reads)
 
-        make_tiles(build_index.out.chrom_sizes,
+        make_tiles(
+            build_index.out.chrom_sizes,
             targets)
 
-        coverage_summary(targets,
+        coverage_summary(
+            targets,
             align_reads.out.bed)
 
-       get_on_target_reads(summariseReads.out.reads
-            .join(coverage_summary.out.on))
+        get_on_target_reads(
+            summariseReads.out.reads
+            .join(coverage_summary.out.on_target_bed))
+        
+        get_on_target_bams(
+            coverage_summary.out.on_target_bed
+            .join(align_reads.out.bam))
 
         target_summary(targets,
             make_tiles.out.tiles,
@@ -471,12 +517,16 @@ workflow pipeline {
                     coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
                     coverage_summary.out.on_off.collectFile(name: 'on_off'))
 
-        results = get_on_target_reads.out
-             .concat(summariseReads.out.stats)
-             .map {it -> it[1]} // Remove sample id from tuples
-             .concat(makeReport.out.report,
-             build_tables.out.sample_summary,
-             build_tables.out.target_summary)
+        pack_files_into_sample_dirs(
+            coverage_summary.out.on_target_bed.concat(
+            get_on_target_reads.out.ontarget_fastq,
+            get_on_target_bams.out.on_target_bam,
+            summariseReads.out.stats).groupTuple())
+
+        results = makeReport.out.report
+             .concat(build_tables.out.sample_summary,
+             build_tables.out.target_summary,
+             pack_files_into_sample_dirs.out.results_dir)
 
     emit:
         results
