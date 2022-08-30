@@ -49,8 +49,8 @@ evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
 The primary outputs of the workflow include:
 
 * A folder per sample containing:
-  * Bam file filtered to contain reads overallpping with targets (*_on_target.bam). 
-  * A bed file with alignment iformation for on-target reads (*on_target.bed).
+  * Bam file filtered to contain reads overlapping with targets (*_on_target.bam). 
+  * A bed file with alignment information for on-target reads (*on_target.bed).
   * A simple text file providing a summary of sequencing reads (*.stats).
 * sample_summary.csv - read and alignment sumamry for each sample.
 * target_summary.csv - read and alignment summary for reads overlapping each target.
