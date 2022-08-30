@@ -53,7 +53,7 @@ The primary outputs of the workflow include:
   * A bed file with alignment iformation for on-target reads (*on_target.bed).
   * A simple text file providing a summary of sequencing reads (*.stats).
 * sample_summary.csv - read and alignment sumamry for each sample.
-* target_summary.csv - read and alignment summary for reads overalpping each target.
+* target_summary.csv - read and alignment summary for reads overlapping each target.
 * a combined HTML report document detailing the primary findings of the workflow across all samples.
 By default, the report contains sequencing quality plots and two tables that summarize targeted sequencing results:
 * on/off-target reads per sample.
