@@ -22,6 +22,11 @@
                     "type": "integer",
                     "default": 8
                 },
+                "mm2_max_mem": {
+                    "type": "string",
+                    "default": "8 GB",
+                    "description": "Memory allocated per minimap2 alignment process"
+                },
                 "fastq": {
                     "type": "string",
                     "format": "path",
