@@ -15,10 +15,7 @@ import nextflow.util.BlankSeparatedList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
-include { start_ping; end_ping } from './lib/ping'
 
-
-// def addSampleNameCol()
 
 process summariseReads {
     // concatenate fastq and fastq.gz in a dir
@@ -579,13 +576,13 @@ workflow {
     output(pipeline.out.results)
     
     if (params.disable_ping == false) {
-    workflow.onComplete {
-        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
-    }
+        workflow.onComplete {
+            Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
+        }
 
-    workflow.onError {
-        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
-    }
+        workflow.onError {
+            Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
+        }
 
     }
 }
