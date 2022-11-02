@@ -549,7 +549,9 @@ workflow pipeline {
 // entrypoint workflow
 WorkflowMain.initialise(workflow, params, log)
 workflow {
-    start_ping()
+    if (params.disable_ping == false) {
+        Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
+    }
 
     ref_genome = file(params.ref_genome, type: "file")
     if (!ref_genome.exists()) {
@@ -575,5 +577,15 @@ workflow {
 
     pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
-    end_ping(pipeline.out.telemetry)
+    
+    if (params.disable_ping == false) {
+    workflow.onComplete {
+        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
+    }
+
+    workflow.onError {
+        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
+    }
+
+    }
 }
