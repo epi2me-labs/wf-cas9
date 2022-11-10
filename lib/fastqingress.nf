@@ -44,7 +44,7 @@ def compareSampleSheetFastq(int sample_sheet_count, int valid_dir_count)
 {
 
     if (sample_sheet_count != valid_dir_count) {
-      log.warn """The number of samplesheet entries ({}) does not match the number of barcoded directories ({})""", sample_sheet_count, valid_dir_count
+      log.warn "The number of samplesheet entries ({}) does not match the number of barcoded directories ({})", sample_sheet_count, valid_dir_count
     }
 
 }
@@ -88,54 +88,24 @@ def find_fastq(pattern, maxdepth)
 
 
 /**
- * Rework EPI2ME flattened directory structure into standard form
- * files are matched on barcode\d+ and moved into corresponding
- * subdirectories ready for processing.
- *
- * @param input_folder Top-level input directory.
- * @param staging Top-level output_directory.
- * @return A File object representating the staging directory created
- *     under output
- */
-def sanitize_fastq(input_folder, staging)
-{
-    // TODO: this fails if input_folder is an S3 path
-    println("Running sanitization.")
-    println(" - Moving files: ${input_folder} -> ${staging}")
-    staging.mkdirs()
-    files = find_fastq(input_folder.resolve("**"), 1)
-    for (fastq in files) {
-        fname = fastq.getFileName()
-        // find barcode
-        pattern = ~/barcode\d+/
-        matcher = fname =~ pattern
-        if (!matcher.find()) {
-            // not barcoded - leave alone
-            fastq.renameTo(staging.resolve(fname))
-        } else {
-            bc_dir = file(staging.resolve(matcher[0]))
-            bc_dir.mkdirs()
-            fastq.renameTo(staging.resolve("${matcher[0]}/${fname}"))
-        }
-    }
-    println(" - Finished sanitization.")
-    return staging
-}
-
-
-/**
  * Take an input directory return the barcode and non barcode
  * sub directories contained within.
  *
  *
  * @param input_directory Top level input folder to locate sub directories
+ * @param unclassified Keep unclassified directory
+ *
  * @return A list containing sublists of barcode and non_barcode sub directories
  */
-def get_subdirectories(input_directory)
+def get_subdirectories(input_directory, unclassified)
 {
     barcode_dirs = file(input_directory.resolve("barcode*"), type: 'dir', maxdepth: 1)
     all_dirs = file(input_directory.resolve("*"), type: 'dir', maxdepth: 1)
-    non_barcoded = ( all_dirs + barcode_dirs ) - all_dirs.intersect(barcode_dirs)
+    if (!unclassified) {
+        all_dirs.removeIf(it -> it.SimpleName.toLowerCase() == "unclassified")
+    }
+    non_barcoded = (all_dirs + barcode_dirs) - all_dirs.intersect(barcode_dirs)
+    
     return [barcode_dirs, non_barcoded]
 }
 
@@ -149,12 +119,12 @@ def get_subdirectories(input_directory)
  */
 def get_sample_sheet(sample_sheet)
 {
-    println("Checking sample sheet.")
+    log.info "Checking sample sheet."
     sample_sheet = file(sample_sheet);
     is_file = sample_sheet.isFile()
 
     if (!is_file) {
-        println('Error: `--samples` is not a file.')
+        log.error "`--samples` is not a file."
         exit 1
     }
 
@@ -200,20 +170,19 @@ def get_valid_directories(input_dirs)
         }
     }
     if (valid_dirs.size() == 0) {
-        error_message = "Error: None of the directories given contain .fastq(.gz) files."
-        println(error_message)
+        log.error "None of the directories given contain .fastq(.gz) files."
         exit 1
     }
     if (no_fastq_dirs.size() > 0) {
-        println("Warning: Excluding directories not containing .fastq(.gz) files:")
+        log.warn "Excluding directories not containing .fastq(.gz) files:"
         for (d in no_fastq_dirs) {
-            println("   - ${d}")
+            log.warn "   - ${d}"
         }
     }
     if (invalid_files_dirs.size() > 0) {
-        println("Warning: Excluding directories containing non .fastq(.gz) files:")
+        log.warn "Excluding directories containing non .fastq(.gz) files:"
         for (d in invalid_files_dirs) {
-            println("   - ${d}")
+            log.warn "   - ${d}"
         }
     }
     return valid_dirs
@@ -346,10 +315,9 @@ def create_metamap(Map arguments) {
  * @param input Top level input file or folder to locate fastq data.
  * @param sample string to name single sample data.
  * @param sample_sheet Path to sample sheet CSV file.
- * @param sanitize regularize inputs from EPI2ME platform.
- * @param output output location, required if sanitize==true
  * @param min_barcode Minimum barcode to accept.
  * @param max_barcode Maximum (inclusive) barcode to accept.
+ * @param unclassified Keep unclassified reads.
  *
  * @return Channel of tuples (path, map(sample_id, type, barcode))
  */
@@ -358,58 +326,49 @@ def fastq_ingress(Map arguments)
     def parser = new ArgumentParser(
         args:["input"],
         kwargs:[
-            "sample":null, "sample_sheet":null, "sanitize":false, "output":null,
-            "min_barcode":0, "max_barcode":Integer.MAX_VALUE],
+            "sample":null, "sample_sheet":null,
+            "min_barcode":0, "max_barcode":Integer.MAX_VALUE,
+            "unclassified":false],
         name:"fastq_ingress")
     Map margs = parser.parse_args(arguments)
 
-    if (margs.sanitize && margs.output == null) {
-        throw new Exception("Argument 'output' required if 'sanitize' is true.")
-    }
 
-
-    println("Checking fastq input.")
+    log.info "Checking fastq input."
     input = file(margs.input)
 
     // Handle file input
     if (input.isFile()) {
         // Assume sample is a string at this point
-        println('Single file input detected.')
+        log.info "Single file input detected."
         if (margs.sample_sheet) {
-            println('Warning: `--sample_sheet` given but single file input found. Ignoring.')
+            log.warn "Warning: `--sample_sheet` given but single file input found. Ignoring."
         }
         return handle_single_file(input, margs.sample)
     }
 
     // Handle directory input
     if (input.isDirectory()) {
-        // EPI2ME harness
-        if (margs.sanitize) {
-            staging = file(margs.output).resolve("staging")
-            input = sanitize_fastq(input, staging)
-        }
-
         // Get barcoded and non barcoded subdirectories
-        (barcoded, non_barcoded) = get_subdirectories(input)
+        (barcoded, non_barcoded) = get_subdirectories(input, margs.unclassified)
 
         // Case 03: If no subdirectories, handle the single dir
         if (!barcoded && !non_barcoded) {
-            println("Single directory input detected.")
+            log.info "Single directory input detected."
             if (margs.sample_sheet) {
-                println('Warning: `--sample_sheet` given but single non-barcode directory found. Ignoring.')
+                log.warn "`--sample_sheet` given but single non-barcode directory found. Ignoring."
             }
             return handle_flat_dir(input, margs.sample)
         }
 
         if (margs.sample) {
-            println('Warning: `--sample` given but multiple directories found, ignoring.')
+            log.warn "`--sample` given but multiple directories found, ignoring."
         }
 
         // Case 01, 02, 04: Handle barcoded and non_barcoded dirs
         // Handle barcoded folders
         barcoded_samples = Channel.empty()
         if (barcoded) {
-            println("Barcoded directories detected.")
+            log.info "Barcoded directories detected."
             sample_sheet = null
             if (margs.sample_sheet) {
                 sample_sheet = get_sample_sheet(margs.sample_sheet)
@@ -419,9 +378,9 @@ def fastq_ingress(Map arguments)
 
         non_barcoded_samples = Channel.empty()
         if (non_barcoded) {
-            println("Non barcoded directories detected.")
+            log.info "Non barcoded directories detected."
             if (!barcoded && margs.sample_sheet) {
-                println('Warning: `--sample_sheet` given but no barcode directories found.')
+                log.warn "Warning: `--sample_sheet` given but no barcode directories found."
             }
             non_barcoded_samples = handle_non_barcoded_dirs(non_barcoded)
         }

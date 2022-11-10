@@ -15,10 +15,7 @@ import nextflow.util.BlankSeparatedList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
-include { start_ping; end_ping } from './lib/ping'
 
-
-// def addSampleNameCol()
 
 process summariseReads {
     // concatenate fastq and fastq.gz in a dir
@@ -66,6 +63,7 @@ process getParams {
 
 process make_tiles {
     label 'cas9'
+    cpus 1
     input:
         path chrom_sizes
         path targets
@@ -85,7 +83,6 @@ process build_index{
     */
     label "cas9"
     cpus params.threads
-
     input:
         file reference
     output:
@@ -93,7 +90,7 @@ process build_index{
         path "chrom.sizes", emit: chrom_sizes
     script:
     """
-        minimap2 -t $params.threads -x map-ont -d genome_index.mmi $reference
+        minimap2 -t $task.cpus -x map-ont -d genome_index.mmi $reference
         samtools faidx $reference
         cut -f 1,2 ${reference}.fai >> chrom.sizes
     """
@@ -101,6 +98,8 @@ process build_index{
 
 process align_reads {
     label "cas9"
+    cpus params.threads
+    memory params.mm2_max_mem
     input:
         path index
         path reference
@@ -111,7 +110,7 @@ process align_reads {
         tuple val(sample_id), path("${sample_id}.bam"), emit: bam
     script:
     """
-    minimap2 -t $params.threads -m 4 -ax map-ont $index $fastq_reads | \
+    minimap2 -t $task.cpus -m 4 -ax map-ont $index $fastq_reads | \
         samtools view -b | samtools sort - | tee ${sample_id}.bam | \
         bedtools bamtobed -i stdin | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
@@ -136,6 +135,7 @@ process target_coverage {
 
      */
     label "cas9"
+    cpus 1
     input:
         path targets
         path tiles
@@ -201,6 +201,7 @@ process target_summary {
         strand reads
     */
     label "cas9"
+    cpus 1
     input:
         path targets
         path tiles
@@ -245,6 +246,7 @@ process target_summary {
 
 process coverage_summary {
     label "cas9"
+    cpus 1
     input:
         path targets
         tuple val(sample_id),
@@ -282,6 +284,7 @@ process coverage_summary {
 
 process background {
     label "cas9"
+    cpus 1
     input:
         path targets
         path tiles
@@ -316,6 +319,7 @@ process background {
 
 process get_on_target_reads {
     label "cas9"
+    cpus 1
     input:
         tuple val(sample_id),
               path(fastq),
@@ -334,6 +338,7 @@ process get_on_target_reads {
 
 process get_on_target_bams {
     label "cas9"
+    cpus 1
     input:
         tuple val(sample_id), 
               path(on_target_bed),
@@ -353,6 +358,7 @@ process get_on_target_bams {
 
 process build_tables {
     label "cas9"
+    cpus 1
     input:
         path on_off
         path aln_summary
@@ -371,6 +377,7 @@ process build_tables {
 
 process makeReport {
    label "cas9"
+   cpus 1
     input:
         path "versions/*"
         path "params.json"
@@ -410,6 +417,7 @@ process makeReport {
 
 process pack_files_into_sample_dirs {
     label "cas9"
+    cpus 1
     input:
         tuple val(sample_id),
               path(sample_files)
@@ -429,6 +437,7 @@ process pack_files_into_sample_dirs {
 process output {
     // publish inputs to output directory
     label "cas9"
+    cpus 1
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
         path fname
@@ -537,7 +546,9 @@ workflow pipeline {
 // entrypoint workflow
 WorkflowMain.initialise(workflow, params, log)
 workflow {
-    start_ping()
+    if (params.disable_ping == false) {
+        Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
+    }
 
     ref_genome = file(params.ref_genome, type: "file")
     if (!ref_genome.exists()) {
@@ -559,11 +570,19 @@ workflow {
     samples = fastq_ingress([
         "input":params.fastq,
         "sample":params.sample,
-        "sample_sheet":params.sample_sheet,
-        "sanitize": params.sanitize_fastq,
-        "output":params.out_dir])
+        "sample_sheet":params.sample_sheet])
 
     pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
-    end_ping(pipeline.out.telemetry)
+    
+    if (params.disable_ping == false) {
+        workflow.onComplete {
+            Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
+        }
+
+        workflow.onError {
+            Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
+        }
+
+    }
 }
