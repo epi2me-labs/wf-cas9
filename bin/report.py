@@ -3,7 +3,6 @@
 
 import argparse
 from pathlib import Path
-from typing import List
 
 from aplanat import hist, lines
 from aplanat.components import simple as scomponents
@@ -15,7 +14,7 @@ from natsort import natsort_keygen, natsorted
 import pandas as pd
 
 
-def plot_target_coverage(report: WFReport, target_coverages: Path):
+def plot_target_coverage(report, target_coverages):
     """Make coverage plots of each target.
 
     Detailing positive and negative strand coverage.
@@ -85,11 +84,11 @@ def plot_target_coverage(report: WFReport, target_coverages: Path):
 
 
 def make_coverage_summary_table(
-        report: WFReport,
-        sample_ids: List[str],
-        table_file: Path,
-        seq_stats: List[Path],
-        on_offs: Path):
+        report,
+        sample_ids,
+        table_file,
+        seq_stats,
+        on_offs):
     """
     Summary table detailing all on and off target reads.
 
@@ -160,7 +159,7 @@ def make_coverage_summary_table(
     section.table(df_all_samples, searchable=True, paging=True, index=False)
 
 
-def make_target_summary_table(report: WFReport, summary_table):
+def make_target_summary_table(report, summary_table):
     """Create a table of target summary statistics."""
     section = report.add_section()
     section.markdown('''
@@ -193,7 +192,7 @@ def make_target_summary_table(report: WFReport, summary_table):
 
 
 def plot_tiled_coverage_hist(
-        report: WFReport, background: List[Path], target_coverage: List[Path]):
+        report, background, target_coverage):
     """Coverage histograms.
 
     Show on-target and off-target (proximal removed) coverage
@@ -257,7 +256,7 @@ def plot_tiled_coverage_hist(
 
 
 def make_offtarget_hotspot_table(
-        report: WFReport, background: Path, nreads_cutoff=10):
+        report, background, nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
 
     :param background: fill in
@@ -290,7 +289,7 @@ def make_offtarget_hotspot_table(
         section.table(df, index=False, table_params=tab_params)
 
 
-def seq_stats_tabs(report: WFReport, sample_ids: List, stats: Path):
+def seq_stats_tabs(report, sample_ids, stats):
     """Make tabs of sequence summaries by sample."""
     tabs = []
     for id_, summ in sorted(zip(sample_ids, stats)):
