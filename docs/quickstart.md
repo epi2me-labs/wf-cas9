@@ -6,9 +6,9 @@ to run the workflow.
 
 The workflow can currently be run using either
 [Docker](https://www.docker.com/products/docker-desktop) or
-[conda](https://docs.conda.io/en/latest/miniconda.html) to provide isolation of
+[singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html) to provide isolation of
 the required software. Both methods are automated out-of-the-box provided
-either docker of conda is installed.
+either docker or singularity is installed.
 
 It is not required to clone or download the git repository in order to run the workflow.
 For more information on running EPI2ME Labs workflows [visit out website](https://labs.epi2me.io/wfindex).
@@ -36,8 +36,7 @@ To test on a small dataset with two targets and two chromosomes:
 ```shell
 cd wf-cas9
 nextflow run . --fastq test_data/fastq/ --ref_genome \
-test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed \
--profile conda -resume
+test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed
 ```
 
 To evaluate on a larger dataset, use the evaluation script:
