@@ -45,7 +45,7 @@ To test on a small dataset with two targets and two chromosomes:
 ```shell
 cd wf-cas9
 nextflow run . --fastq test_data/fastq/ --ref_genome \
-test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed -resume
+test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed
 ```
 
 To evaluate on a larger dataset, use the evaluation script:
