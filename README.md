@@ -1,7 +1,8 @@
 # wf-cas9
 
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
-for the multiplexed analysis of Cas9-enrichment sequencingß. ## Introduction
+for the multiplexed analysis of Cas9-enrichment sequencing. 
+## Introduction
 This workflow generated a report summarising the results of Cas9 enrichment sequencing.
 
 Users provide a reference genome, FASTQ ONT reads, and a BED file containing enrichment regions.
