@@ -171,7 +171,7 @@
         }
     },
     "docs": {
-        "intro": "## Introduction\nThis workflow generated a report summarising the results of Cas9 enrichment sequencing.\n\nUsers provide a reference genome, FASTQ ONT reads, and a BED file containing enrichment regions.\nThe reads are first mapped the reference genome using [minimap2](https://github.com/lh3/minimap2), and\nvarious plots and tables are generated summarising the enrichment results.\n",
+        "intro": "## Introduction\nThis workflow generated a report summarising the results of Cas9 enrichment sequencing.\n\nUsers provide a reference genome, FASTQ ONT reads, and a BED file containing enrichment regions.\nThe reads are first mapped to the reference genome using [minimap2](https://github.com/lh3/minimap2), and\nvarious plots and tables are generated summarising the enrichment results.\n",
         "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html)"
     }
 }

@@ -6,9 +6,9 @@ to run the workflow.
 
 The workflow can currently be run using either
 [Docker](https://www.docker.com/products/docker-desktop) or
-[singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html) to provide isolation of
+[Singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html) to provide isolation of
 the required software. Both methods are automated out-of-the-box provided
-either docker or singularity is installed.
+either Docker or Singularity is installed.
 
 It is not required to clone or download the git repository in order to run the workflow.
 For more information on running EPI2ME Labs workflows [visit out website](https://labs.epi2me.io/wfindex).
@@ -23,7 +23,7 @@ nextflow run epi2me-labs/wf-cas9 --help
 to see the options for the workflow.
 
 ### Workflow inputs:
-* Folder of fastq reads.
+* Folder of FASTQ reads.
 * Genome reference file.
 * Target BED file with 4 columns:
   * chromosome
@@ -55,8 +55,8 @@ The primary outputs of the workflow include:
 * target_summary.csv - read and alignment summary for reads overlapping each target.
 * A combined HTML report detailing the primary findings of the workflow across all samples.
 By default, the report contains sequencing quality plots and two tables that summarise targeted sequencing results:
-* On/off-target reads per sample.
-* Summaries of each sample/target pair.
+  * On/off-target reads per sample.
+  * Summaries of each sample/target pair.
 
 Using `--full_report`, the report will also contain the following elements that may be useful for
 diagnosing issues with the experiment. These are turned off by default as they can lead to slow loading of the
