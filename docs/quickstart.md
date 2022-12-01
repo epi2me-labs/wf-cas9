@@ -6,9 +6,9 @@ to run the workflow.
 
 The workflow can currently be run using either
 [Docker](https://www.docker.com/products/docker-desktop) or
-[Singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html) to provide isolation of
+[singularity](https://docs.sylabs.io/guides/latest/user-guide/) to provide isolation of
 the required software. Both methods are automated out-of-the-box provided
-either Docker or Singularity is installed.
+either docker or singularity is installed.
 
 It is not required to clone or download the git repository in order to run the workflow.
 For more information on running EPI2ME Labs workflows [visit out website](https://labs.epi2me.io/wfindex).
@@ -22,7 +22,7 @@ nextflow run epi2me-labs/wf-cas9 --help
 ```
 to see the options for the workflow.
 
-### Workflow inputs:
+The main inputs are:
 * Folder of FASTQ reads.
 * Genome reference file.
 * Target BED file with 4 columns:
@@ -33,10 +33,18 @@ to see the options for the workflow.
 
 
 To test on a small dataset with two targets and two chromosomes:
+first download and unpack the demo data
+```shell
+wget 
+```
+https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz
+tar -xvf wf-cas9-demo.tar.gz
+
 ```shell
 cd wf-cas9
-nextflow run . --fastq test_data/fastq/ --ref_genome \
-test_data/grch38/grch38_chr19_22.fa.gz --targets test_data/targets.bed
+nextflow run . --fastq wf-cas9-demo/fastq/ \
+  --ref_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
+  --targets wf-cas9-demo/targets.bed
 ```
 
 To evaluate on a larger dataset, use the evaluation script:
