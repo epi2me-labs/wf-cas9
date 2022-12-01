@@ -1,4 +1,4 @@
 # wf-cas9
 
-This repository contains a [nextflow](https://www.nextflow.io/) workflow
-for the multiplexed analysis of Cas9 enrichment sequencing. 
+wf-cas9 is a [nextflow](https://www.nextflow.io/) workflow
+for the multiplexed analysis of Oxford Nanopore Cas9 enrichment sequencing. 
