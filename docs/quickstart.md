@@ -35,10 +35,8 @@ The main inputs are:
 To test on a small dataset with two targets and two chromosomes:
 first download and unpack the demo data
 ```shell
-wget 
-```
-https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz
-tar -xvf wf-cas9-demo.tar.gz
+wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz \
+  && tar -xvf wf-cas9-demo.tar.gz
 
 ```shell
 nextflow run epi2me-labs/wf-cas9 \

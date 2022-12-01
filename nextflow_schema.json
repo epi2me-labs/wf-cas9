@@ -28,8 +28,8 @@
                 "targets": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "A BED file of Cas9 target regions.",
-                    "help_text": ""
+                    "description": "A tab-delimited BED file of target regions.",
+                    "help_text": "Each row should contain the following fields: chromosome/contig name, start and end of target region, and a name to identify the target. An example row would look like this: `chr19 13204400 13211100 SCA6`"
                 },
                 "analyse_unclassified": {
                     "type": "boolean",
@@ -76,8 +76,9 @@
                 },
                 "full_report": {
                     "type": "boolean",
-                    "description": "Select this option to write a full report with per-sample plotting of target and background coverage.",
-                    "help_text": "Not recommended when using large sample or target numbers."
+                    "description": "Select this option to write a full report that contains plots showing graphical representation of coverage at each target region.",
+                    "help_text": "In cases where there are many target to visualise, the report loading time can be slow and so it's is recommended to set `full_report` to false in such cases.",
+                    "default": false
                 }
             }
         },
@@ -94,7 +95,7 @@
                     "help_text": "The total CPU resource used by the workflow is constrained by the executor configuration.",
                     "default": 8
                 },
-                "mm2_max_mem": {
+                "minimap2_max_memory": {
                     "type": "string",
                     "default": "8 GB",
                     "description": "Memory allocated per minimap2 alignment process",

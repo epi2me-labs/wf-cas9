@@ -99,7 +99,7 @@ process build_index{
 process align_reads {
     label "cas9"
     cpus params.threads
-    memory params.mm2_max_mem
+    memory params.minimap2_max_memory
     input:
         path index
         path reference
@@ -550,7 +550,7 @@ workflow {
         Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
     }
 
-    ref_genome = file(params.ref_genome, type: "file")
+    ref_genome = file(params.reference_genome, type: "file")
     if (!ref_genome.exists()) {
         println("--ref_genome: File doesn't exist, check path.")
         exit 1
