@@ -41,16 +41,13 @@ https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.
 tar -xvf wf-cas9-demo.tar.gz
 
 ```shell
-cd wf-cas9
-nextflow run . --fastq wf-cas9-demo/fastq/ \
+nextflow run epi2me-labs/wf-cas9 \
+  --fastq wf-cas9-demo/fastq/ \
   --ref_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
-  --targets wf-cas9-demo/targets.bed
+  --targets wf-cas9-demo/targets.bed \
+  --full_report
 ```
 
-To evaluate on a larger dataset, use the evaluation script:
-```
-evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
-```
 **Workflow outputs**
 
 The primary outputs of the workflow include:

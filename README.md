@@ -3,19 +3,19 @@
 wf-cas9 is a [nextflow](https://www.nextflow.io/) workflow
 for the multiplexed analysis of Oxford Nanopore Cas9 enrichment sequencing. 
 ## Introduction
-Cas9 enrichemnt sequencing 
-This workflow is suitable for analysisng the effectiveness of Cas9 enrighment strategies
-but can be applied to other appeaches. The ONT Cas9 sequencing kit allows the enrichment of
-regions of interest using by cleaving and apapter-binding with Cas9 flanking regions of.
+The ONT Cas9 sequencing kit allows the enrichment of gemomic
+regions of interest by amplifying targets regions using adapters bound to Cas9 cleaved regions.
+This purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, 
+but can be applied to other approaches. 
 
 This workflow provides a report that is useful to help understand the effectiveness and issues
 of the enrichement straetegy. 
 
-The user needs to supply a reference genome file, fastq reads from their enrichment sequencing 
-experiment and a BED file detailing the regions of interests (targets) that they were aiming to enrich.
+Inputs to the workflow are: a reference genome file, fastq reads from enrichment sequencing ,
+and a BED file detailing the regions of interests (targets).
 The main output is a report with summary statistics and plots which illustrate 
-the effectiveness of enrichment. Other outputs inclide a BAM alignemnt file covering the
-target regions and a BED file with simiar imformation.
+the effectiveness of enrichment. Other outputs inclide a BAM alignment file covering the
+target regions and a BED file with similar imformation.
 
 The workflow innvolves the genome alignment of input reads using 
 [minimap2](https://github.com/lh3/minimap2) and the analaysis 
@@ -65,16 +65,13 @@ https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.
 tar -xvf wf-cas9-demo.tar.gz
 
 ```shell
-cd wf-cas9
-nextflow run . --fastq wf-cas9-demo/fastq/ \
+nextflow run epi2me-labs/wf-cas9 \
+  --fastq wf-cas9-demo/fastq/ \
   --ref_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
-  --targets wf-cas9-demo/targets.bed
+  --targets wf-cas9-demo/targets.bed \
+  --full_report
 ```
 
-To evaluate on a larger dataset, use the evaluation script:
-```
-evaluation run_evaluation.sh <out_dir> [optional_nexflow config]
-```
 **Workflow outputs**
 
 The primary outputs of the workflow include:
