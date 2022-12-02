@@ -19,11 +19,11 @@
                     "description": "FASTQ files to use in the analysis.",
                     "help_text": "This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`."
                 },
-                "ref_genome": {
+                "reference_genome": {
                     "type": "string",
                     "format": "file-path",
                     "description": "FASTA reference file.",
-                    "help_text": "Full path to FASTA reference file to use for mapping."
+                    "help_text": "Full path to a FASTA reference genome file conating the target regions of interest."
                 },
                 "targets": {
                     "type": "string",
@@ -40,7 +40,7 @@
             },
             "required": [
                 "fastq",
-                "ref_genome",
+                "reference_genome",
                 "targets"
             ]
         },
@@ -76,7 +76,7 @@
                 },
                 "full_report": {
                     "type": "boolean",
-                    "description": "Select this option to write a full report that contains plots showing graphical representation of coverage at each target region.",
+                    "description": "Select this option to write a full report that contains plots giving a graphical representation of coverage at each target region.",
                     "help_text": "In cases where there are many target to visualise, the report loading time can be slow and so it's is recommended to set `full_report` to false in such cases.",
                     "default": false
                 }
