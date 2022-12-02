@@ -1,5 +1,5 @@
 ## Introduction
-The ONT Cas9 sequencing kit allows the enrichment of gemomic
+The ONT Cas9 sequencing kit allows the enrichment of genomic
 regions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.
 The purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, 
 but it can be applied to other enrichment approaches. The workflow outputs
