@@ -1,11 +1,11 @@
 ## Introduction
 The ONT Cas9 sequencing kit allows the enrichment of gemomic
-regions of interest by amplifying targets regions using adapters bound to Cas9 cleaved regions.
-This purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, 
-but can be applied to other approaches. 
+regions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.
+The purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, 
+but it can be applied to other enrichment approaches. 
 
-This workflow provides a report that is useful to help understand the effectiveness and issues
-of the enrichement straetegy. 
+This workflow provides a report that helps users understand the effectiveness 
+of the enrichement strategy and to be able to diagnose any issues with specific probles.
 
 Inputs to the workflow are: a reference genome file, fastq reads from enrichment sequencing ,
 and a BED file detailing the regions of interests (targets).
