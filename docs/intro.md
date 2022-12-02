@@ -1,6 +1,20 @@
 ## Introduction
-This workflow generated a report summarising the results of Cas9 enrichment sequencing.
+The ONT Cas9 sequencing kit allows the enrichment of genomic
+regions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.
+The purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, 
+but it can be applied to other enrichment approaches. The workflow outputs
+help assess the effectiveness 
+of the enrichement strategy and can be used to diagnose issues such as poorly performing probes.
 
-Users provide a reference genome, fastq ONT reads, and a bed file containing enrichment regions. 
-The reads are first mapped the reference genome using [minimap2](https://github.com/lh3/minimap2), and 
-various plots and tables are generated summarizing the enrichment results.
+Inputs to the workflow are: a reference genome file, FASTQ reads from enrichment sequencing,
+and a BED file detailing the regions of interests (targets).
+The main outputs are a report containing summary statistics and plots which give an overview of 
+the enrichment, and a BAM file with target-overlapping reads.
+
+The main steps of the workflow are alignemnt of reads to the genome using 
+[minimap2](https://github.com/lh3/minimap2) and the analaysis
+of read-target overlap with [bedtools](https://github.com/arq5x/bedtools2).
+
+
+
+

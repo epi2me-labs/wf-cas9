@@ -3,95 +3,117 @@
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-cas9",
     "description": "Nextflow workflow for multiplexed analysis of Cas9 targeted sequencing.",
+    "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz",
     "url": "https://github.com/epi2me-labs/wf-cas9",
     "type": "object",
     "definitions": {
-        "basic_input_output_options": {
-            "title": "Basic Input/Output Options",
+        "input": {
+            "title": "Input Options",
             "type": "object",
-            "fa_icon": "fas fa-terminal",
-            "description": "Define where the pipeline should find input data and save output data.",
+            "fa_icon": "fas fa-arrow-right",
+            "description": "Parameters for finding and handling input data for analysis.",
+            "properties": {
+                "fastq": {
+                    "type": "string",
+                    "format": "path",
+                    "description": "FASTQ files to use in the analysis.",
+                    "help_text": "This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`."
+                },
+                "reference_genome": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "FASTA reference file.",
+                    "help_text": "Full path to a FASTA reference genome file conating the target regions of interest."
+                },
+                "targets": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "A tab-delimited BED file of target regions.",
+                    "help_text": "Each row should contain the following fields: chromosome/contig name, start and end of target region, and a name to identify the target. An example row would look like this: `chr19 13204400 13211100 SCA6`"
+                },
+                "analyse_unclassified": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory.",
+                    "help_text": "If selected and if the input is a multiplex directory the workflow will also process the unclassified directory."
+                }
+            },
+            "required": [
+                "fastq",
+                "reference_genome",
+                "targets"
+            ]
+        },
+        "samples": {
+            "title": "Sample Options",
+            "type": "object",
+            "fa_icon": "fas fa-vials",
+            "description": "Parameters that relate to samples such as sample sheets and sample names.",
+            "properties": {
+                "sample_sheet": {
+                    "type": "string",
+                    "format": "path",
+                    "description": "A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files.",
+                    "help_text": "The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed. A `type` column is required for certain workflows and should have the following values; `test_sample`, `positive_control`, `negative_control`, `no_template_control`."
+                },
+                "sample": {
+                    "type": "string",
+                    "description": "A single sample name for non-multiplexed data. Permissible if passing a single .fastq(.gz) file or directory of .fastq(.gz) files."
+                }
+            }
+        },
+        "output": {
+            "title": "Output Options",
+            "type": "object",
+            "fa_icon": "fas fa-arrow-left",
+            "description": "Parameters for saving and naming workflow outputs.",
             "properties": {
                 "out_dir": {
                     "type": "string",
                     "default": "output",
                     "format": "directory-path",
-                    "description": "Directory for output of all user-facing files."
-                },
-                "threads": {
-                    "type": "integer",
-                    "default": 8
-                },
-                "mm2_max_mem": {
-                    "type": "string",
-                    "default": "8 GB",
-                    "description": "Memory allocated per minimap2 alignment process"
-                },
-                "fastq": {
-                    "type": "string",
-                    "format": "path",
-                    "description": "A fastq file or directory containing fastq input files or directories of input files.",
-                    "help_text": "If directories named \\\"barcode*\\\" are found under the `--fastq` directory the data is assumed to be multiplex and each barcode directory will be processed independently. If `.fastq(.gz)` files are found under the `--fastq` directory the sample is assumed to not be multiplexed. In this second case `--samples` should be a simple name rather than a CSV file."
-                },
-                "sample": {
-                    "type": "string",
-                    "description": "A sample name for non-multiplexed data. Permissible if passing a file or directory of .fastq(.gz)."
-                },
-                "sample_sheet": {
-                    "type": "string",
-                    "description": "CSV file with columns named `barcode`, `sample_name` and `type`. Permissible if passing a directory containing barcodeXX sub-directories."
-                },
-                "sanitize_fastq": {
-                    "type": "boolean",
-                    "description": "Use additional heuristics to identify barcodes from file paths.",
-                    "help_text": "Enabling this option will group together files into samples by the presence of strings of the form `barcodeXXX` present in filenames, rather than simply files grouped into directories (as output by MinKNOW and the Guppy basecaller)."
-                },
-                "ref_genome": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "A fasta file reference genome"
-                },
-                "targets": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "A bed file of Cas9 target regions"
+                    "description": "Directory for output of all workflow results."
                 },
                 "full_report": {
                     "type": "boolean",
-                    "description": "Write full report with per-sample plotting of target and background coverage. Not recommended when using large sample or target numbers "
+                    "description": "Select this option to write a full report that contains plots giving a graphical representation of coverage at each target region.",
+                    "help_text": "In cases where there are many target to visualise, the report loading time can be slow and so it's is recommended to set `full_report` to false in such cases.",
+                    "default": false
                 }
-            },
-            "required": [
-                "fastq",
-                "ref_genome",
-                "targets"
-            ]
+            }
         },
-        "meta_data": {
-            "title": "Meta Data",
+        "advanced_options": {
+            "title": "Advanced Options",
             "type": "object",
-            "description": "",
+            "fa_icon": "far fa-question-circle",
+            "description": "Advanced options for configuring processes inside the workflow.",
+            "help_text": "These advanced options do not need to be changed for typical use, but allow fine tuning of workflows for users who want more control over the workflow.",
+            "properties": {
+                "threads": {
+                    "type": "integer",
+                    "description": "Number of CPU threads to use per workflow task.",
+                    "help_text": "The total CPU resource used by the workflow is constrained by the executor configuration.",
+                    "default": 8
+                },
+                "minimap2_max_memory": {
+                    "type": "string",
+                    "default": "8 GB",
+                    "description": "Maximum allowed memory usage for the minimap2 stage,",
+                    "help_text": "The total memory resource used by the workflow is constrained by the executor configuration"
+                }
+            }
+        },
+        "misc": {
+            "title": "Miscellaneous Options",
+            "type": "object",
+            "description": "Everything else.",
             "default": "",
             "properties": {
-                "report_name": {
-                    "type": "string",
-                    "default": "report",
-                    "description": "Output report filename suffix."
-                },
                 "disable_ping": {
                     "type": "boolean",
                     "default": false,
                     "description": "Enable to prevent sending a workflow ping."
-                }
-            }
-        },
-        "generic_options": {
-            "title": "Generic options",
-            "type": "object",
-            "fa_icon": "far fa-question-circle",
-            "description": "Less common options for the pipeline, typically set in a config file.",
-            "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
-            "properties": {
+                },
                 "help": {
                     "type": "boolean",
                     "description": "Display help text.",
@@ -109,13 +131,19 @@
     },
     "allOf": [
         {
-            "$ref": "#/definitions/basic_input_output_options"
+            "$ref": "#/definitions/input"
         },
         {
-            "$ref": "#/definitions/meta_data"
+            "$ref": "#/definitions/samples"
         },
         {
-            "$ref": "#/definitions/generic_options"
+            "$ref": "#/definitions/output"
+        },
+        {
+            "$ref": "#/definitions/advanced_options"
+        },
+        {
+            "$ref": "#/definitions/misc"
         }
     ],
     "properties": {
@@ -129,7 +157,7 @@
         },
         "wfversion": {
             "type": "string",
-            "default": "v0.1.5",
+            "default": "v0.1.6",
             "hidden": true
         },
         "monochrome_logs": {
@@ -144,7 +172,7 @@
         }
     },
     "docs": {
-        "intro": "## Introduction\nThis workflow generated a report summarising the results of Cas9 enrichment sequencing.\n\nUsers provide a reference genome, fastq ONT reads, and a bed file containing enrichment regions. \nThe reads are first mapped the reference genome using [minimap2](https://github.com/lh3/minimap2), and \nvarious plots and tables are generated summarizing the enrichment results.\n",
+        "intro": "## Introduction\nThe ONT Cas9 sequencing kit allows the enrichment of genomic\nregions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.\nThe purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, \nbut it can be applied to other enrichment approaches. The workflow outputs\nhelp assess the effectiveness \nof the enrichement strategy and can be used to diagnose issues such as poorly performing probes.\n\nInputs to the workflow are: a reference genome file, FASTQ reads from enrichment sequencing,\nand a BED file detailing the regions of interests (targets).\nThe main outputs are a report containing summary statistics and plots which give an overview of \nthe enrichment, and a BAM file with target-overlapping reads.\n\nThe main steps of the workflow are alignemnt of reads to the genome using \n[minimap2](https://github.com/lh3/minimap2) and the analaysis\nof read-target overlap with [bedtools](https://github.com/arq5x/bedtools2).\n\n\n\n\n",
         "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html)"
     }
 }
