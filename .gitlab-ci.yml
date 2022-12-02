@@ -10,5 +10,5 @@ variables:
     # (not things such as -profile)
     CI_FLAVOUR: "new"
     NF_WORKFLOW_OPTS: "--fastq test_data/fastq \
-                        --ref_genome test_data/grch38/grch38_chr19_22.fa.gz \
+                        --reference_genome test_data/grch38/grch38_chr19_22.fa.gz \
                         --targets test_data/targets.bed --full_report"
