@@ -574,15 +574,15 @@ workflow {
 
     pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
-    
-    if (params.disable_ping == false) {
-        workflow.onComplete {
-            Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
-        }
+}
 
-        workflow.onError {
-            Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
-        }
-
+if (params.disable_ping == false) {
+    workflow.onComplete {
+        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
     }
+
+    workflow.onError {
+        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
+    }
+
 }
