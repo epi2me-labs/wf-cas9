@@ -2,7 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-cas9",
-    "description": "Nextflow workflow for multiplexed analysis of Cas9 targeted sequencing.",
+    "description": "Summarise the results of Cas9 enrichment sequencing.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz",
     "url": "https://github.com/epi2me-labs/wf-cas9",
     "type": "object",
@@ -157,7 +157,7 @@
         },
         "wfversion": {
             "type": "string",
-            "default": "v0.1.6",
+            "default": "v0.1.7",
             "hidden": true
         },
         "monochrome_logs": {
