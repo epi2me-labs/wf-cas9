@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated description in manifest
 
 ## [v0.1.6]
-## Updated
+### Updated
 - Docs
 - schema and config for using with new Labs Launcher 
 
