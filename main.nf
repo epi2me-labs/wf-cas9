@@ -359,7 +359,7 @@ process build_tables {
         path 'sample_summary.csv', emit: sample_summary
     script:
     """
-    build_tables.py \
+    workflow-glue build_tables \
         --target_summary $target_summary \
         --on_off $on_off \
         --aln_summary $aln_summary
@@ -392,7 +392,7 @@ process makeReport {
         def optbghot = off_target_hotspots.name.startsWith('OPTIONAL_FILE') ? '' : "--off_target_hotspots ${off_target_hotspots}"
 
     """
-    report.py $report_name \
+    workflow-glue report $report_name \
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \
