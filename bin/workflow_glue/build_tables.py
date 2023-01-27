@@ -124,8 +124,3 @@ def main(args):
     sample_summary.set_index('sample_id', drop=True, inplace=True)
 
     sample_summary.to_csv('sample_summary.csv')
-
-
-if __name__ == "__main__":
-    args = argparser().parse_args()
-    main(args)

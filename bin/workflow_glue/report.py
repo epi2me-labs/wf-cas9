@@ -392,8 +392,3 @@ def main(args):
 
     # write report
     report.write(args.report)
-
-
-if __name__ == "__main__":
-    args = argparser().parse_args()
-    main(args)
