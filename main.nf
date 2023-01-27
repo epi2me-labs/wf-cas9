@@ -1,15 +1,5 @@
 #!/usr/bin/env nextflow
 
-// Developer notes
-//
-// This template workflow provides a basic structure to copy in order
-// to create a new workflow. Current recommended pratices are:
-//     i) create a simple command-line interface.
-//    ii) include an abstract workflow scope named "pipeline" to be used
-//        in a module fashion.
-//   iii) a second concreate, but anonymous, workflow scope to be used
-//        as an entry point when using this workflow in isolation.
-
 import groovy.json.JsonBuilder
 import nextflow.util.BlankSeparatedList;
 nextflow.enable.dsl = 2
@@ -44,6 +34,7 @@ process getVersions {
     """
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
+    bedtools --version | sed 's/^bedtools /betools,/' >> versions.txt
     """
 }
 
@@ -368,7 +359,7 @@ process build_tables {
         path 'sample_summary.csv', emit: sample_summary
     script:
     """
-    build_tables.py \
+    workflow-glue build_tables \
         --target_summary $target_summary \
         --on_off $on_off \
         --aln_summary $aln_summary
@@ -401,7 +392,7 @@ process makeReport {
         def optbghot = off_target_hotspots.name.startsWith('OPTIONAL_FILE') ? '' : "--off_target_hotspots ${off_target_hotspots}"
 
     """
-    report.py $report_name \
+    workflow-glue report $report_name \
         --summaries $seq_summaries \
         --versions versions \
         --params params.json \

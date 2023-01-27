@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 """build summary tables for report and output CSVs."""
 
-import argparse
-
 from natsort import natsort_keygen
 import pandas as pd
+from .util import wf_parser  # noqa: ABS101
 
 
-def main(target_summary, on_off_bed, aln_sum):
+def argparser():
+    """Create argument parser."""
+    parser = wf_parser("build_tables")
+    parser.add_argument(
+        "--target_summary", help="Target summary bed.")
+    parser.add_argument(
+        "--aln_summary", help="Alignment summary from pomoxis/stats_from_bam.")
+    parser.add_argument(
+        "--on_off", help="bed file of xx .")
+    return parser
+
+
+def main(args):
     """Entry point."""
     header = [
         'chr', 'start', 'end', 'target', 'nreads', 'nbases',
@@ -16,18 +27,18 @@ def main(target_summary, on_off_bed, aln_sum):
     frames = []
 
     df_ono_ff = pd.read_csv(
-        on_off_bed, sep='\t',
+        args.on_off, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
-    stats_df = pd.read_csv(aln_sum, sep='\t', index_col=False)
+    stats_df = pd.read_csv(args.aln_summary, sep='\t', index_col=False)
 
     df_on_off = df_ono_ff.merge(
         stats_df[['name', 'read_length', 'acc']],
         left_on='read_id', right_on='name')
 
     main_df = pd.read_csv(
-        target_summary, sep='\t', names=header, index_col=False)
+        args.target_summary, sep='\t', names=header, index_col=False)
 
     for id_, df in main_df.groupby('sample_id'):
         df = df.drop(columns=['sample_id'])
@@ -113,15 +124,3 @@ def main(target_summary, on_off_bed, aln_sum):
     sample_summary.set_index('sample_id', drop=True, inplace=True)
 
     sample_summary.to_csv('sample_summary.csv')
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--target_summary", help="Target summary bed.")
-    parser.add_argument(
-        "--aln_summary", help="Alignment summary from pomoxis/stats_from_bam.")
-    parser.add_argument(
-        "--on_off", help="bed file of xx .")
-    args = parser.parse_args()
-    main(args.target_summary, args.on_off, args.aln_summary)

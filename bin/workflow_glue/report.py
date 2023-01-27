@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 """Create workflow report."""
-
-import argparse
 from pathlib import Path
 
 from aplanat import hist, lines
@@ -12,6 +10,48 @@ from bokeh.layouts import gridplot
 from bokeh.models import Legend, Panel, Tabs
 from natsort import natsort_keygen, natsorted
 import pandas as pd
+from .util import wf_parser  # noqa: ABS101
+
+
+def argparser():
+    """Create argument parser."""
+    parser = wf_parser("Report")
+    parser.add_argument("report", help="Report output file")
+    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
+    parser.add_argument(
+        "--versions", required=True,
+        help="directory containing CSVs containing name,version.")
+    parser.add_argument(
+        "--params", default=None, required=True,
+        help="A JSON file containing the workflow parameter key/values")
+    parser.add_argument(
+        "--revision", default='unknown',
+        help="git branch/tag of the executed workflow")
+    parser.add_argument(
+        "--commit", default='unknown',
+        help="git commit of the executed workflow")
+    parser.add_argument(
+        "--sample_ids", required=True, nargs='+',
+        help="List of sample ids")
+    parser.add_argument(
+        "--coverage_summary", required=True, type=Path,
+        help="Contigency table coverage summary csv")
+    parser.add_argument(
+        "--target_coverage", required=False, default=None,
+        type=Path, help="Tiled coverage for each target")
+    parser.add_argument(
+        "--target_summary", required=True, type=Path,
+        help="Summary stats for each target. CSV.")
+    parser.add_argument(
+        "--background", required=False, default=None, type=Path,
+        help="Tiled background coverage")
+    parser.add_argument(
+        "--off_target_hotspots", required=False, default=None,
+        type=Path, help="Tiled background coverage")
+    parser.add_argument(
+        "--on_off", required=True, type=Path,
+        help="Bed file. 5th column containing target or empty for off-target")
+    return parser
 
 
 def plot_target_coverage(report, target_coverages):
@@ -306,50 +346,11 @@ def seq_stats_tabs(report, sample_ids, stats):
     section.plot(Tabs(tabs=tabs))
 
 
-def main():
+def main(args):
     """Run the entry point."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("report", help="Report output file")
-    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
-    parser.add_argument(
-        "--versions", required=True,
-        help="directory containing CSVs containing name,version.")
-    parser.add_argument(
-        "--params", default=None, required=True,
-        help="A JSON file containing the workflow parameter key/values")
-    parser.add_argument(
-        "--revision", default='unknown',
-        help="git branch/tag of the executed workflow")
-    parser.add_argument(
-        "--commit", default='unknown',
-        help="git commit of the executed workflow")
-    parser.add_argument(
-        "--sample_ids", required=True, nargs='+',
-        help="List of sample ids")
-    parser.add_argument(
-        "--coverage_summary", required=True, type=Path,
-        help="Contigency table coverage summary csv")
-    parser.add_argument(
-        "--target_coverage", required=False, default=None,
-        type=Path, help="Tiled coverage for each target")
-    parser.add_argument(
-        "--target_summary", required=True, type=Path,
-        help="Summary stats for each target. CSV.")
-    parser.add_argument(
-        "--background", required=False, default=None, type=Path,
-        help="Tiled background coverage")
-    parser.add_argument(
-        "--off_target_hotspots", required=False, default=None,
-        type=Path, help="Tiled background coverage")
-    parser.add_argument(
-        "--on_off", required=True, type=Path,
-        help="Bed file. 5th column containing target or empty for off-target")
-    args = parser.parse_args()
-
     report = WFReport(
         "Workflow for analysis of cas9-targeted sequencing", "wf-cas9",
         revision=args.revision, commit=args.commit)
-
     intro_section = report.add_section()
     intro_section.markdown('''
     The workflow aids with the quantification of the non-target depletion and
@@ -362,7 +363,6 @@ def main():
     off-target regions over-represented within the sequence collection may
     inform of strategies to refine guide-RNA design.
     ''')
-
     # Add reads summary section
     seq_stats_tabs(report, args.sample_ids, args.summaries)
 
@@ -392,7 +392,3 @@ def main():
 
     # write report
     report.write(args.report)
-
-
-if __name__ == "__main__":
-    main()
