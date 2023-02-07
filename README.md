@@ -65,7 +65,7 @@ wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-
 ```shell
 nextflow run epi2me-labs/wf-cas9 \
   --fastq wf-cas9-demo/fastq/ \
-  --ref_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
+  --reference_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
   --targets wf-cas9-demo/targets.bed \
   --full_report
 ```
