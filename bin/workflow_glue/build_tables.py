@@ -12,10 +12,35 @@ def argparser():
     parser.add_argument(
         "--target_summary", help="Target summary bed.")
     parser.add_argument(
-        "--aln_summary", help="Alignment summary from pomoxis/stats_from_bam.")
+        "--aln_summary", help="Alignment summary from bamstats.")
     parser.add_argument(
-        "--on_off", help="bed file of xx .")
+        "--read_to_target", help="bed file including read_id, target, sample_id")
     return parser
+
+
+def read_target_summary(df):
+    """Build table summarising on target/off-target read status."""
+    df.loc[df.target != 'off_target', 'target'] = 'on_target'
+
+    agg = df.groupby(['sample_id', 'target']).agg(
+        mean_len=('read_length', 'mean'),
+        num_reads=('read_id', 'count'),
+        kbases_mapped=('read_length', 'sum'))
+
+    agg.kbases_mapped /= 1000
+    agg = agg.astype('int')
+    agg.reset_index(inplace=True)
+    result = agg.pivot(
+        index='sample_id',
+        columns=['target'],
+        values=['mean_len', 'num_reads', 'kbases_mapped'])
+
+    # Create emptpy columns if there are no on-target reads
+    if ('num_reads', 'on_target') not in result:
+        result[[('mean_len', 'on_target')]] = 0
+        result[[('num_reads', 'on_target')]] = 0
+        result[[('kbases_mapped', 'on_target')]] = 0
+    return result
 
 
 def main(args):
@@ -26,47 +51,42 @@ def main(args):
 
     frames = []
 
-    df_ono_ff = pd.read_csv(
-        args.on_off, sep='\t',
+    df_read_to_taget = pd.read_csv(
+        args.read_to_target, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
-    stats_df = pd.read_csv(args.aln_summary, sep='\t', index_col=False)
+    read_stats_df = pd.read_csv(args.aln_summary, sep='\t', index_col=False)
 
-    df_on_off = df_ono_ff.merge(
-        stats_df[['name', 'read_length', 'acc']],
+    df_read_to_taget = df_read_to_taget.merge(
+        read_stats_df[['name', 'read_length']],
         left_on='read_id', right_on='name')
 
-    main_df = pd.read_csv(
+    df_target_summary = pd.read_csv(
         args.target_summary, sep='\t', names=header, index_col=False)
 
-    for id_, df in main_df.groupby('sample_id'):
+    for id_, df in df_target_summary.groupby('sample_id'):
         df = df.drop(columns=['sample_id'])
         if len(df) == 0:
             continue
-        df_on_off = df_on_off.astype({
+        df_read_to_taget = df_read_to_taget.astype({
             'start': int,
             'end': int,
-            'read_length': int,
-            'acc': float
+            'read_length': int
         })
-        read_len = df_on_off.groupby(['target']).mean()[['read_length']]
+        read_len = df_read_to_taget.groupby(['target']).mean()[['read_length']]
         read_len.columns = ['mean_read_length']
         if len(read_len) > 0:
             df = df.merge(read_len, left_on='target', right_index=True)
         else:
             df['mean_read_length'] = 0
 
-        kbases = df_on_off.groupby(['target']).sum()[['read_length']] / 1000
+        kbases = df_read_to_taget.groupby(['target']).sum()[['read_length']] / 1000
         kbases.columns = ['kbases']
         if len(kbases) > 0:
             df = df.merge(kbases, left_on='target', right_index=True)
         else:
             df['kbases'] = 0
-
-        acc = df_on_off.groupby(['target']).mean()[['acc']]
-        acc.columns = ['mean_acc']
-        df = df.merge(acc, left_on='target', right_index=True)
 
         df['strand_bias'] = (df.p - df.n) / (df.p + df.n)
         df.drop(columns=['p', 'n'], inplace=True)
@@ -87,13 +107,12 @@ def main(args):
             'strand_bias': 2,
             'coverage_frac': 2,
             'kbases': 2,
-            'mean_read_length': 1,
-            'mean_acc': 2})
+            'mean_read_length': 1})
 
         df_all = df_all[[
             'sample', 'chr', 'start', 'end', 'target', 'tsize',
             'kbases', 'coverage_frac', 'median_cov', 'nreads',
-            'mean_read_length', 'mean_acc', 'strand_bias']]
+            'mean_read_length', 'strand_bias']]
         df_all.sort_values(
             by=["sample", "chr", "start"], key=natsort_keygen(), inplace=True)
     else:
@@ -109,8 +128,6 @@ def main(args):
             df['kbases'] * (df['nreads'] / df['nreads'].sum())
         sdf['mean_read_length'] =\
             df['mean_read_length'] * (df['nreads'] / df['nreads'].sum())
-        sdf['mean_acc'] =\
-            df['mean_acc'] * (df['nreads'] / df['nreads'].sum())
         sdf['strand_bias'] =\
             df['strand_bias'] * (df['nreads'] / df['nreads'].sum())
         sample_df = sdf.sum()
@@ -119,8 +136,13 @@ def main(args):
         sample_df['sample_id'] = sid
         dfs.append(sample_df)
 
-    sample_summary = pd.concat(dfs, axis=1).T
-
-    sample_summary.set_index('sample_id', drop=True, inplace=True)
+    if dfs:
+        sample_summary = pd.concat(dfs, axis=1).T
+        sample_summary.set_index('sample_id', drop=True, inplace=True)
+    else:
+        sample_summary = pd.DataFrame()
 
     sample_summary.to_csv('sample_summary.csv')
+
+    read_target_summary_table = read_target_summary(df_read_to_taget)
+    read_target_summary_table.to_csv('read_target_summary.tsv', sep='\t')

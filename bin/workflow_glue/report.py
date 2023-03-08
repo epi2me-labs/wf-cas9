@@ -2,22 +2,33 @@
 """Create workflow report."""
 from pathlib import Path
 
-from aplanat import hist, lines
-from aplanat.components import simple as scomponents
-from aplanat.components.fastcat import read_length_plot, read_quality_plot
-from aplanat.report import WFReport
-from bokeh.layouts import gridplot
-from bokeh.models import Legend, Panel, Tabs
-from natsort import natsort_keygen, natsorted
+from dominate.tags import h6, p
+from dominate.util import raw
+import ezcharts as ezc
+from ezcharts.components.ezchart import EZChart
+from ezcharts.components.fastcat import SeqSummary
+from ezcharts.components.reports.labs import LabsReport
+from ezcharts.components.theme import LAB_head_resources
+from ezcharts.layout.snippets import DataTable, Grid, Tabs
+from ezcharts.plots import AxisLabelFormatter, util
+from ezcharts.util import get_named_logger
 import pandas as pd
+
 from .util import wf_parser  # noqa: ABS101
+
+# Setup simple globals
+WORKFLOW_NAME = 'wf-cas9'
+REPORT_TITLE = f'{WORKFLOW_NAME} report'
+Colors = util.Colors
 
 
 def argparser():
     """Create argument parser."""
     parser = wf_parser("Report")
     parser.add_argument("report", help="Report output file")
-    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
+    parser.add_argument(
+        "--read_stats",
+        help="fastcat read stats file, with multiple samples concatenated")
     parser.add_argument(
         "--versions", required=True,
         help="directory containing CSVs containing name,version.")
@@ -31,104 +42,112 @@ def argparser():
         "--commit", default='unknown',
         help="git commit of the executed workflow")
     parser.add_argument(
-        "--sample_ids", required=True, nargs='+',
-        help="List of sample ids")
-    parser.add_argument(
         "--coverage_summary", required=True, type=Path,
-        help="Contigency table coverage summary csv")
+        help=("table showing n reads, mean len, "
+              "and kbases mapped for on/off-taget reads"))
     parser.add_argument(
         "--target_coverage", required=False, default=None,
-        type=Path, help="Tiled coverage for each target")
+        type=Path, help="Tiled coverage for each target for generating target plots")
     parser.add_argument(
         "--target_summary", required=True, type=Path,
-        help="Summary stats for each target. CSV.")
+        help="Summary stats for each target. TSV.")
     parser.add_argument(
-        "--background", required=False, default=None, type=Path,
-        help="Tiled background coverage")
+        "--tile_coverage", required=False, default=None, type=Path,
+        help="Tiled coverage TSV. columns: cov, sample_id, ontarget/offtarget ")
     parser.add_argument(
         "--off_target_hotspots", required=False, default=None,
         type=Path, help="Tiled background coverage")
-    parser.add_argument(
-        "--on_off", required=True, type=Path,
-        help="Bed file. 5th column containing target or empty for off-target")
     return parser
 
 
-def plot_target_coverage(report, target_coverages):
+def target_table_and_plots(report, target_coverages, target_summaries):
     """Make coverage plots of each target.
 
     Detailing positive and negative strand coverage.
-
-    :param target_coverages
     """
-    section = report.add_section()
-    section.markdown('''
-    ### Target coverage
+    with report.add_section('Targets', 'Targets'):
 
-    Each of the following plots show the amount of coverage, per strand
-    in discretized bins of 100 bp.
-    ''')
+        h6("Target coverage plots")
 
-    header = [
-        "chr", "start", "end", "target", "coverage_f", 'coverage_r',
-        "sample_id"]
-    tabs = []
-    main_df = pd.read_csv(target_coverages, names=header, sep='\t')
-    for id_, df in main_df.groupby('sample_id'):
-        dfg = df.groupby('target')
+        p('''
+        Each of the following plots show the amount of coverage per target, for each
+        strand in discretized bins of 100 bp.
+        ''')
 
-        ncols = dfg.ngroups if dfg.ngroups < 5 else 4
-        plots = []
+        tabs = Tabs()
 
-        for i, (target, df) in enumerate(dfg):
-            chrom = df.loc[df.index[0], 'chr']
-            ymax = max(df.coverage_f.max(), df.coverage_r.max())
-            ylim = [0, ymax * 1.05]  # a bit of space at top of plot
+        main_df = pd.read_csv(target_coverages, sep='\t')
 
-            # if no coverage across target, force some height.
-            if not any([df.coverage_f.any(), df.coverage_r.any()]):
-                ylim = [0, 10]
+        for sample_id, df in main_df.groupby('sample_id'):
+            if sample_id == 'sample_id':
+                continue
+            with tabs.add_tab(sample_id):
+                with Grid(columns=4):
+                    for target, df_target in df.groupby('target'):
+                        chrom = df.loc[df.index[0], 'chr']
+                        # Show chrom as xAxis label
+                        df_target = df_target.rename(columns={'start': chrom})
 
-            p = lines.line(
-                [df.start.values, df.start.values],  # x-values
-                [df.coverage_f, df.coverage_r],      # y-values
-                title="{}".format(target),
-                x_axis_label='{}'.format(chrom),
-                y_axis_label='',
-                colors=['#1A85FF', '#D41159'],
-                ylim=ylim,
-                height=200, width=300)
+                        plot = ezc.lineplot(
+                            df_target,
+                            x=chrom,
+                            y='coverage',
+                            hue='strand',
+                            markers=False)
 
-            p.xaxis.formatter.use_scientific = False
-            p.xaxis.major_label_orientation = 3.14 / 6
+                        fmt = AxisLabelFormatter(sci_notation=False)
 
-            plots.append([chrom, df.start.values[0], p])
+                        for s in plot.series:
+                            s.showSymbol = False  # Add this to ezcharts (markers)
 
-        sorted_plots = [p[2] for p in natsorted(plots, key=lambda x: x[0])]
+                        plot.xAxis.axisLabel = dict(formatter=fmt)
 
-        legend_plot = sorted_plots[ncols - 1]
-        legend_plot.width = legend_plot.width + 80
-        legend = Legend(
-            items=[("+", legend_plot.renderers[0:1]),
-                   ("-", legend_plot.renderers[1:])])
-        legend_plot.add_layout(legend, 'right')
+                        plot.xAxis.min = df_target[chrom].min()
+                        plot.title = dict(text=target)
+                        plot.legend = dict(
+                                orient='horizontal', top=30, icon='rect')
+                        plot.xAxis.axisLabel.rotate = 30
 
-        grid = gridplot(sorted_plots, ncols=ncols)
-        tabs.append(Panel(child=grid, title=id_))
+                        EZChart(plot, theme='epi2melabs', height='250px')
 
-        # Extract target coverage
-        cov = pd.DataFrame(df.coverage_f + df.coverage_r)
-        cov.columns = ['coverage']
-    cover_panel = Tabs(tabs=tabs)
-    section.plot(cover_panel)
+        h6("Target summaries")
+        raw('''
+            This table provides summaries for each sample/target combination.
+            ''')
+
+        df_all = pd.read_csv(target_summaries, index_col=False)
+        df_all = df_all.astype({
+            'kbases': int,
+            'mean_read_length': int
+        })
+
+        tabs = Tabs()
+        for sample_id, df in df_all.groupby('sample'):
+            with tabs.add_tab(sample_id):
+                DataTable.from_pandas(df, use_index=False)
+
+        raw('''
+                 <u>Column descriptions</u>:
+                 <ul>
+                     <li><b>chr</b>, start, end: target location.</li>
+                 <li><b>target</b>: the target name. </li>
+                 <li><b>nreads</b>: number of reads aligning. </li>
+                 <li><b>coverage_frac</b>: fraction of bases within target with non-zero
+                   coverage. </li>
+                 <li><b>tsize</b>: length of target (in bases). </li>
+                 <li><b>median_cov</b>: average read depth across target. </li>
+                 <li><b>mean_read_length</b>:  average read length of reads aligning.
+                    </li>
+                 <li><b>strand_bias</b>: proportional difference of reads aligning to
+                 each strand. </li>
+                     A value or +1 or -1 indicates complete bias to the forward or
+                     reverse strand respectively. </li>
+                 <li><b>kbases</b>: number of bases in reads overlapping target. </li>
+                 <br>
+                 ''')
 
 
-def make_coverage_summary_table(
-        report,
-        sample_ids,
-        table_file,
-        seq_stats,
-        on_offs):
+def coverage_summary_table(report, table_file):
     """
     Summary table detailing all on and off target reads.
 
@@ -138,113 +157,38 @@ def make_coverage_summary_table(
     later.
 
     Merge the data from all samples into a single table.
-
-    :param seq_stats:  the summary from fastcat
     """
-    section = report.add_section()
-    section.markdown('''
-        ### Summary of on-target and off-target reads.
-        On target reads are defined here as any read that contains at least 1pb
-        overlap with a target region and off target reads have 0 overlapping
-        bases.
-        ''')
-    sample_frames = []
+    with report.add_section('Summary of on-target and off-target reads', 'Summary'):
+        p(
+            """On target reads are defined here as any read that contains at least 1pb
+            overlap with a target region. Off target reads contain no target-overlapping
+            bases."""
+        )
+        df_all = pd.read_csv(
+            table_file,
+            sep='\t',
+            header=[0, 1, 2],
+            index_col=0)
 
-    id_stats = {k: v for k, v in zip(sample_ids, seq_stats)}
-    df_onoff = pd.read_csv(
-        on_offs, sep='\t',
-        names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
-        index_col=False)
+        # Tidy up the columns index.
+        df_all = df_all.droplevel(2, axis=1)
+        df_all.index.name = 'sample'
 
-    main_df = pd.read_csv(
-        table_file, sep='\t', names=['on target', 'off target', 'sample_id'])
-
-    for id_, df in main_df.groupby('sample_id'):
-        df = df.drop(columns=['sample_id'])
-        df['all'] = df['on target'] + df['off target']
-
-        df = df.T
-        df.columns = ['num_reads', 'kbases mapped']
-        df['kbases mapped'] = df['kbases mapped'] / 1000
-
-        df_stats = pd.read_csv(id_stats[id_], sep='\t')
-
-        df_m = df_onoff[df_onoff['sample_id'] == id_]
-        df_m = df_m.merge(
-            df_stats[['read_id', 'read_length']],
-            left_on='read_id', right_on='read_id')
-        df_m['target'] = df_m['target'].fillna('OFF')
-
-        mean_read_len = [
-            df_m[df_m.target != 'OFF'].read_length.mean(),
-            df_m[df_m.target == 'OFF'].read_length.mean(),
-            df_m.read_length.mean()]
-
-        df['mean read length'] = mean_read_len
-        df.fillna(0, inplace=True)
-        df = df.astype('int')
-
-        # Melt the dataframe into a single row
-        dfu = df.unstack().to_frame().sort_index(level=1).T
-        dfu.insert(0, 'sample', id_)
-        sample_frames.append(dfu)
-
-    df_all_samples = pd.concat(sample_frames)
-
-    df_all_samples.sort_values(
-        by=["sample"], key=natsort_keygen(), inplace=True)
-    # Sort the multiindex columns
-    df_all_samples = df_all_samples.T.sort_index(ascending=False).T
-
-    section.table(df_all_samples, searchable=True, paging=True, index=False)
+        tabs = Tabs()
+        for sample_id, df in df_all.groupby('sample'):
+            with tabs.add_tab(sample_id):
+                DataTable.from_pandas(df=df)
 
 
-def make_target_summary_table(report, summary_table):
-    """Create a table of target summary statistics."""
-    section = report.add_section()
-    section.markdown('''
-        ### Target regions summary
-
-        This table provides a summary of all the target region detailing:
-
-        * chr, start, end: target location.
-        * target: the target name
-        * nreads: number of reads aligning.
-        * coverage_frac: fraction of bases within target with non-zero
-          coverage.
-        * tsize: length of target (in bases).
-        * median_cov: average read depth across target.
-        * mean_read_length:  average read length of reads aligning.
-        * mean_acc: alignment accuracy.
-        * strand_bias: proportional difference of reads aligning to each
-          strand.
-            A value or +1 or -1 indicates complete bias to the forward or
-            reverse strand respectively.
-        * kbases: number of bases in reads overlapping target.
-        ''')
-
-    df = pd.read_csv(summary_table, index_col=False)
-    df = df.astype({
-        'kbases': int,
-        'mean_read_length': int
-    })
-    section.table(df, searchable=True, paging=True, index=False)
-
-
-def plot_tiled_coverage_hist(
-        report, background, target_coverage):
+def tiled_coverage_hist(report, tiled_coverage_tsv):
     """Coverage histograms.
 
-    Show on-target and off-target (proximal removed) coverage
-    over bins.
+    Show on-target / off-target coverage at 100bp tiled genome bins.
     """
-    section = report.add_section()
-    section.markdown('''
-            ### Coverage distribution
-
-            This histogram(s) show the coverage distribution of on-target and
-            or off-target (background) reads binned by 100bp
-            genome tiles. Off-target regions are defined as any region not
+    with report.add_section('Coverage distribution', 'Coverage distribution'):
+        p('''Theese plots show the on-target / off-target coverage distribution
+            of genomic regions binned by 100bp.
+            Off-target regions are defined as any region not
             within 1kb of a target.
 
             The background histogram should naturally be be skewed heavily
@@ -252,60 +196,36 @@ def plot_tiled_coverage_hist(
             genome have a single read mapping.
 
             If the targeted sequencing approach has performed well,
-            the target histogram should be skewed towards the right
-            as there has been a depletion of non-target reads.
-
+            the on_target histogram should be skewed towards the right
+            indicating a depletion of non-target reads.
             ''')
 
-    header_target = [
-        "chr", "start", "end", "target", "coverage_f", 'coverage_r',
-        'sample_id']
-    header_background = [
-        'chr', 'start', 'end', 'tile_name', '#reads', '#bases_cov', 'tileLen',
-        'fracTileAln', 'sample_id']
+        df_all = pd.read_csv(tiled_coverage_tsv, sep='\t')
 
-    plots = []
-
-    df_target = pd.read_csv(target_coverage, sep='\t', names=header_target)
-    df_background = pd.read_csv(background, sep='\t', names=header_background)
-
-    for id_, dfb, in df_background.groupby('sample_id'):
-        dft = df_target[df_target.sample_id == id_]
-        # Extract target coverage
-        tc = pd.DataFrame(dft.coverage_f + dft.coverage_r)
-        tc.columns = ['coverage']
-
-        len_bg = len(dfb['#reads'].values)
-        len_target = len(tc['coverage'])
-        weights = [[1 / len_bg] * len_bg,
-                   [1 / len_target] * len_target]
-
-        plot = hist.histogram(
-            [dfb['#reads'].values, tc['coverage']],
-            colors=['#1A85FF', '#D41159'],
-            normalize=True,
-            weights=weights,
-            names=['Background', 'On-target'],
-            x_axis_label='Coverage',
-            y_axis_label='Proportion of reads (normalized by class size)',
-            title=id_)
-
-        plots.append(plot)
-    grid = gridplot(plots, ncols=3, width=360, height=300)
-    section.plot(grid)
+        n_columns = 4
+        with Grid(columns=n_columns):
+            for i, (sample_id, df) in enumerate(df_all.groupby('sample_id')):
+                plot = ezc.histplot(
+                    df, bins=5, hue='target_status', stat='proportion')
+                plot.xAxis.name = 'coverage'
+                plot.yAxis.name = 'Proportion of reads'
+                plot.title = dict(text=sample_id)
+                plot.xAxis.axisLabel = dict(rotate=30)
+                plot.legend = dict(orient='horizontal', top=30)
+                EZChart(plot, theme='epi2melabs', height='250px')
 
 
-def make_offtarget_hotspot_table(
-        report, background, nreads_cutoff=10):
+def make_offtarget_hotspot_table(report, background, nreads_cutoff=10):
     """Make a table of off-target hotspot regions.
 
-    :param background: fill in
+    :param background: TSV
+        columns:
+
+
     :param nreads_cutoff: threshold for inclusion in background hotspot table
     """
-    section = report.add_section()
-    section.markdown('''
-            ### Off-target hotspots
-
+    with report.add_section('Off-target hotspots', 'Background'):
+        p('''
             Off target regions are again defined here as all regions of the
             genome not within 1kb of a target region.
 
@@ -314,81 +234,54 @@ def make_offtarget_hotspot_table(
             performing primers. Only regions with {} reads or more are included
             '''.format(nreads_cutoff))
 
-    main_df = pd.read_csv(
-        background, sep='\t',
-        names=['chr', 'start', 'end', 'numReads', 'sample_id'])
+        main_df = pd.read_csv(
+            background, sep='\t',
+            names=['chr', 'start', 'end', 'numReads', 'sample_id'])
 
-    for id_, df in main_df.groupby('sample_id'):
-        df = df[df.numReads >= nreads_cutoff]
-        df['hotspotLength'] = df.end - df.start
-        df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
-        df.sort_values('numReads', ascending=False, inplace=True)
-        # Just a few rows for init view until we can use tables in tabs
-        tab_params = {'pageLength': 15}
-        section.markdown(f'Sample: {id_}')
-        section.table(df, index=False, table_params=tab_params)
-
-
-def seq_stats_tabs(report, sample_ids, stats):
-    """Make tabs of sequence summaries by sample."""
-    tabs = []
-    for id_, summ in sorted(zip(sample_ids, stats)):
-        df_sum = pd.read_csv(summ, index_col=False, sep='\t')
-        rlp = read_length_plot(df_sum)
-        rqp = read_quality_plot(df_sum)
-        grid = gridplot(
-            [rlp, rqp], ncols=2, sizing_mode="stretch_width")
-
-        tabs.append(Panel(child=grid, title=id_))
-    section = report.add_section()
-    section.markdown("""
-    ### Sequence summaries""")
-    section.plot(Tabs(tabs=tabs))
+        tabs = Tabs()
+        for sample_id, df in main_df.groupby('sample_id'):
+            with tabs.add_tab(sample_id):
+                df = df[df.numReads >= nreads_cutoff]
+                df.loc[:, 'hotspotLength'] = df.end - df.start
+                df = df[['chr', 'numReads', 'start', 'end', 'hotspotLength']]
+                df.sort_values('numReads', ascending=False, inplace=True)
+                DataTable.from_pandas(df, use_index=False)
 
 
 def main(args):
     """Run the entry point."""
-    report = WFReport(
-        "Workflow for analysis of cas9-targeted sequencing", "wf-cas9",
-        revision=args.revision, commit=args.commit)
-    intro_section = report.add_section()
-    intro_section.markdown('''
-    The workflow aids with the quantification of the non-target depletion and
-    provides information on mapping characteristics that highlight the cas9
-    targeted sequencing protocol performance. The figures plotted include
-    depth-of-coverage over the target regions and strand bias over these
-    regions. The location and peaks of coverage and local biases in
-    strandedness may be used to assess the performance of guide-RNA sequences
-    and may highlight guide RNAs that are not performing. A review of likely
-    off-target regions over-represented within the sequence collection may
-    inform of strategies to refine guide-RNA design.
-    ''')
-    # Add reads summary section
-    seq_stats_tabs(report, args.sample_ids, args.summaries)
+    logger = get_named_logger("Report")
+    logger.info('Building report')
 
-    make_coverage_summary_table(
-        report, args.sample_ids, args.coverage_summary, args.summaries,
-        args.on_off)
+    report = LabsReport(
+        REPORT_TITLE, WORKFLOW_NAME, args.params, args.versions,
+        head_resources=[*LAB_head_resources])
 
-    make_target_summary_table(report, args.target_summary)
+    with report.add_section('Introduction', 'Intro'):
+        p('''
+        The workflow aids with the quantification of the non-target depletion and
+        provides information on mapping characteristics that highlight the cas9
+        targeted sequencing protocol performance. The figures plotted include
+        depth-of-coverage over the target regions and strand bias over these
+        regions. The location and peaks of coverage and local biases in
+        strandedness may be used to assess the performance of guide-RNA sequences
+        and may highlight guide RNAs that are not performing. A review of likely
+        off-target regions over-represented within the sequence collection may
+        inform of strategies to refine guide-RNA design.
+        ''')
 
-    make_coverage_summary_table(
-        report, args.sample_ids, args.coverage_summary,
-        args.summaries, args.on_off)
+    with report.add_section('Read summaries', 'Reads'):
+        SeqSummary(args.read_stats)
 
-    if args.target_coverage:
-        plot_target_coverage(report, args.target_coverage)
+    coverage_summary_table(report, args.coverage_summary)
 
-    if args.background and args.target_coverage:
-        plot_tiled_coverage_hist(report, args.background, args.target_coverage)
+    target_table_and_plots(report, args.target_coverage, args.target_summary)
+    # plot_target_coverage(report, args.target_coverage)
+    # make_target_summary_table(report, args.target_summary)
+
+    tiled_coverage_hist(report, args.tile_coverage)
 
     if args.off_target_hotspots:
         make_offtarget_hotspot_table(report, args.off_target_hotspots)
 
-    report.add_section(
-        section=scomponents.version_table(args.versions))
-    report.add_section(
-        section=scomponents.params_table(args.params))
-
-    # write report
     report.write(args.report)
