@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 
 import groovy.json.JsonBuilder
-import nextflow.util.BlankSeparatedList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
@@ -101,7 +100,7 @@ process align_reads {
         tuple val(sample_id), path("${sample_id}.bam"), emit: bam
     script:
     """
-    minimap2 -t $task.cpus -m 4 -ax map-ont $index $fastq_reads | \
+    minimap2 -t $task.cpus -ax map-ont $index $fastq_reads | \
         samtools view -b | samtools sort - | tee ${sample_id}.bam | \
         bedtools bamtobed -i stdin | bedtools sort > ${sample_id}_fastq_pass.bed
     # Get a csv with columns: [read_id, alignment_accuracy]
@@ -128,48 +127,41 @@ process target_coverage {
     label "cas9"
     cpus 1
     input:
-        path targets
-        path tiles
-        path tiles_inter_targets
-        path chrom_sizes
+        path 'targets.tsv'
+        path 'tiles.tsv'
+        path 'tile_target_intersection.tsv'
         tuple val(sample_id),
-              path(aln)
+              path('align.bed')
     output:
-        path('*_target_cov.bed'), emit: target_coverage
+        path('target_cov.bed'), emit: target_coverage
 
 
     script:
     """
     # Get alignment coverage at tiles per strand
 
-    if grep -q "\\W+" $aln
+    echo "chr\tstart\tend\ttarget\tcoverage\tstrand\tsample_id" > target_cov.bed
+
+    if grep -q "\\W+" align.bed
       then
-        cat $aln | grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-            cut -f 1,2,3,8,9 > pos.bed
+        cat align.bed | grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - -wa | \
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${sample_id}/" >> target_cov.bed
       else
         echo "_\t0\t1\ttest_id\t0\t+" > p.bed
-        cat p.bed| grep "\\W+" | bedtools coverage -a $tiles_inter_targets -b - | \
-            cut -f 1,2,3,8,9 > pos.bed
+        cat p.bed| grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - | \
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${sample_id}/" >> target_cov.bed
     fi
 
-    if grep -q "\\W-" $aln
+    # Add the strand sample_id columns
+    if grep -q "\\W-" align.bed
       then
-        cat $aln | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-            cut -f 9 > neg.bed
+        cat align.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${sample_id}/" >> target_cov.bed
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
-        cat n.bed | grep "\\W-" | bedtools coverage -a $tiles_inter_targets -b - | \
-            cut -f 9 > neg.bed
+        cat n.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${sample_id}/" >> target_cov.bed
     fi
-
-    # Cols ["chr", "start", "end", "target", "coverage_f", 'coverage_r']
-    paste pos.bed neg.bed > ${sample_id}_target_cov.bed
-
-    # Add sample_id column
-    sed "s/\$/\t${sample_id}/" ${sample_id}_target_cov.bed > tmp
-    mv tmp ${sample_id}_target_cov.bed
-
-    rm pos.bed neg.bed
     """
 
 }
@@ -239,36 +231,39 @@ process coverage_summary {
     label "cas9"
     cpus 1
     input:
-        path targets
+        path 'targets.bed'
         tuple val(sample_id),
-              path(aln)
+              path('align.bed')
     output:
-        path('*on_off_summ.csv'), emit: summary
-        path('*on_off.bed'), emit: on_off
-        tuple val(sample_id), path('*on_target.bed'), emit: on_target_bed
+        path("${sample_id}_coverage_summary.csv"), emit: summary
+        path("${sample_id}_read_to_target.bed"), emit: read_to_target
+        tuple val(sample_id), path("*_on_target.bed"), emit: on_target_bed
     script:
     """
-    # For table with cols:  num_reads, num_bases, mean read_len
-    bedtools intersect -a $aln -b $targets -wa -wb -v | cut -f 1-4 | \
-     awk -F '\\t' -v OFS='\\t' '{ \$(NF+1) = OFF; print }'  > off.bed
-    bedtools intersect -a $aln -b $targets -wa -wb | cut -f 1-4,10  > ${sample_id}_on_target.bed
+    # Get all non-intersecting reads from aln/targets using '-v'
+     bedtools intersect -a "align.bed" -b 'targets.bed' -wa -wb -v \
+        | cut -f 1-4 \
+        | awk -F '\\t' -v OFS='\\t' '{print \$0,"off_target"}' > off.bed
+
+    bedtools intersect -a 'align.bed' -b 'targets.bed' -wa -wb | cut -f 1-4,10  > ${sample_id}_on_target.bed
 
     numread_on=\$(cat ${sample_id}_on_target.bed | wc -l | tr -d ' ')
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
-    cat ${sample_id}_on_target.bed off.bed > ${sample_id}_on_off.bed
+    cat ${sample_id}_on_target.bed off.bed > ${sample_id}_read_to_target.bed
 
     bases_on=\$(cat ${sample_id}_on_target.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    rm off.bed
 
-    echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_on_off_summ.csv
+    echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_coverage_summary.csv
 
     # Add sample id columns
-    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off_summ.csv > tmp1
-    mv tmp1 ${sample_id}_on_off_summ.csv
+    sed "s/\$/\t${sample_id}/" ${sample_id}_coverage_summary.csv > tmp1
+    mv tmp1 ${sample_id}_coverage_summary.csv
 
-    sed "s/\$/\t${sample_id}/" ${sample_id}_on_off.bed > tmp2
-    mv tmp2 ${sample_id}_on_off.bed
+    sed "s/\$/\t${sample_id}/" ${sample_id}_read_to_target.bed > tmp2
+    mv tmp2 ${sample_id}_read_to_target.bed
     """
 }
 
@@ -277,33 +272,45 @@ process background {
     label "cas9"
     cpus 1
     input:
-        path targets
-        path tiles
-        path chrom_sizes
+        path 'targets.tsv'
+        path 'tiles.tsv'
+        path 'chrom_sizes.tsv'
         tuple val(sample_id),
-              path(aln)
+              path('align.bed')
     output:
-        path('*_tiles_background_cov.bed'), emit: table
-        path('*off_target_hotspots.bed'), emit: hotspots
+        path('off_target_hotspots.bed'), emit: hotspots
+        path('coverage_at_tiles.tsv'), emit: tiles_coverage
     script:
     """
-    # Slop = padding of targets
-    # remove reads that overlap slopped targets
-    bedtools slop -i $targets -g $chrom_sizes -b 1000 | tee  targets_padded.bed | \
-        bedtools intersect -v -a $aln -b - -wa | \
-        bedtools coverage -a $tiles -b - > ${sample_id}_tiles_background_cov.bed
+    # For each tile that does not intersect with a slopped target (intersect -v) get the coverage.
+    bedtools slop -i targets.tsv -g chrom_sizes.tsv -b 1000 \
+        | tee  targets_padded.bed \
+        | bedtools intersect -v -a align.bed -b - -wa \
+        | bedtools coverage -a tiles.tsv -b - \
+        | awk '\$5 > 0 {print \$5}' \
+        | sed "s/\$/\t${sample_id}\toff_target/" > off_target_cov_at_tiles.tsv
+
+    # write header
+    echo "cov\tsample_id\ttarget_status" > coverage_at_tiles.tsv
+
+    # For each tile does intersect with a slopped target get the coverage.
+    bedtools slop -i targets.tsv -g chrom_sizes.tsv -b 1000 \
+        | bedtools intersect -a align.bed -b - -wa \
+        | bedtools coverage -a tiles.tsv -b - \
+        | awk '\$5 > 0 {print \$5}' \
+        | sed "s/\$/\t${sample_id}\ton_target/"  >> coverage_at_tiles.tsv
+
+    # Coverage_at tiles is a TSV with cols: cov, sample_id, target_status (on_target/off_target)
+    cat off_target_cov_at_tiles.tsv >> coverage_at_tiles.tsv
 
     # Get all contiguous regions of background alignments
-    cat targets_padded.bed | bedtools intersect -a $aln -b - -v  | \
-        bedtools merge -i - | bedtools coverage -a - -b $aln | \
-        cut -f 1-4 > ${sample_id}_off_target_hotspots.bed
+    cat targets_padded.bed | bedtools intersect -a align.bed -b - -v  | \
+        bedtools merge -i - | bedtools coverage -a - -b align.bed | \
+        cut -f 1-4 > off_target_hotspots.bed
 
-    # Add sample_id columns
-    sed "s/\$/\t${sample_id}/" ${sample_id}_tiles_background_cov.bed > tmp1
-    mv tmp1 ${sample_id}_tiles_background_cov.bed
-
-    sed "s/\$/\t${sample_id}/" ${sample_id}_off_target_hotspots.bed > tmp2
-    mv tmp2 ${sample_id}_off_target_hotspots.bed
+    # Cols: chrom. start, stop, coverage, sample_id
+    sed "s/\$/\t${sample_id}/" off_target_hotspots.bed > tmp2
+    mv tmp2 off_target_hotspots.bed
     """
 }
 
@@ -351,18 +358,19 @@ process build_tables {
     label "cas9"
     cpus 1
     input:
-        path on_off
-        path aln_summary
-        path target_summary
+        path 'read_to_target.tsv'
+        path 'aln_summary.tsv'
+        path 'target_summary.tsv'
     output:
         path 'target_summary.csv', emit: target_summary
         path 'sample_summary.csv', emit: sample_summary
+        path 'read_target_summary.tsv', emit: read_target_summary
     script:
     """
     workflow-glue build_tables \
-        --target_summary $target_summary \
-        --on_off $on_off \
-        --aln_summary $aln_summary
+        --target_summary target_summary.tsv \
+        --read_to_target read_to_target.tsv \
+        --aln_summary aln_summary.tsv
     """
 }
 
@@ -372,37 +380,30 @@ process makeReport {
     input:
         path "versions/*"
         path "params.json"
-        tuple val(sample_ids),
-              path(seq_summaries)
+        path 'seq_summaries'
+        path 'tile_coverage.tsv'
         path target_coverage
-        path target_summary_table
-        path background
+        path 'target_summary_table.tsv'
+        path 'coverage_summary.tsv'
         path off_target_hotspots
-        path coverage_summary
-        path on_off
 
     output:
         path "wf-cas9-*.html", emit: report
     script:
-        report_name = "wf-cas9-" + params.report_name + '.html'
-        // Convert the sample_id arrayList.
-        sids = new BlankSeparatedList(sample_ids)
+        report_name = "wf-cas9-report.html"
         def opttcov = target_coverage.name.startsWith('OPTIONAL_FILE') ? '' : "--target_coverage ${target_coverage}"
-        def optbcov = background.name.startsWith('OPTIONAL_FILE') ? '' : "--background ${background}"
         def optbghot = off_target_hotspots.name.startsWith('OPTIONAL_FILE') ? '' : "--off_target_hotspots ${off_target_hotspots}"
 
     """
     workflow-glue report $report_name \
-        --summaries $seq_summaries \
+        --read_stats seq_summaries \
         --versions versions \
         --params params.json \
-        --target_summary $target_summary_table \
-        --sample_ids $sids \
-        --coverage_summary $coverage_summary \
-        --on_off $on_off \
-        ${opttcov} \
-        ${optbcov} \
-        ${optbghot}
+        --tile_coverage tile_coverage.tsv \
+        --coverage_summary coverage_summary.tsv \
+        --target_summary target_summary_table.tsv \
+        $opttcov \
+        $optbghot
     """
 }
 
@@ -479,43 +480,40 @@ workflow pipeline {
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
-        // No output in debug mode
-        if (params.full_report){
-            target_coverage(targets,
-                make_tiles.out.tiles,
-                make_tiles.out.tiles_inter_targets,
-                build_index.out.chrom_sizes,
-                align_reads.out.bed)
 
-            background(targets,
-                make_tiles.out.tiles,
-                build_index.out.chrom_sizes,
-                align_reads.out.bed)
+        target_coverage(targets,
+            make_tiles.out.tiles,
+            make_tiles.out.tiles_inter_targets,
+            align_reads.out.bed)
 
-            tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage')
-            bg_cov = background.out.table.collectFile(name: 'background')
-            bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
+        background(targets,
+            make_tiles.out.tiles,
+            build_index.out.chrom_sizes,
+            align_reads.out.bed)
 
-        }else {
-            tar_cov_tsv = file("$projectDir/data/OPTIONAL_FILE")
-            bg_cov = file("$projectDir/data/OPTIONAL_FILE1")
-            bg_hotspots = file("$projectDir/data/OPTIONAL_FILE2")
-        }
+        tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage', keepHeader: true)
+        tile_cov = background.out.tiles_coverage.collectFile(name: 'tile_cov', keepHeader: true)
+        bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
+
+         read_stats = summariseReads.out.stats
+                        .map {it -> it[1]}
+                        .collectFile(keepHeader:true, name: 'stats')
 
         build_tables(
-            coverage_summary.out.on_off.collectFile(name: 'on_off'),
+            coverage_summary.out.read_to_target.collectFile(name: 'read_to_target'),
             align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true),
-            target_summary.out.table.collectFile(name: 'target_summary'))
-
-        report = makeReport(software_versions,
+            target_summary.out.table.collectFile(name: 'target_summary')
+        )
+        report = makeReport(
+                    software_versions,
                     workflow_params,
-                    summariseReads.out.stats.toList().transpose().toList(),
+                    read_stats,
+                    tile_cov,
                     tar_cov_tsv,
                     build_tables.out.target_summary,
-                    bg_cov,
+                    build_tables.out.read_target_summary,
                     bg_hotspots,
-                    coverage_summary.out.summary.collectFile(name: 'coverage_summary'),
-                    coverage_summary.out.on_off.collectFile(name: 'on_off'))
+        )
 
         pack_files_into_sample_dirs(
             coverage_summary.out.on_target_bed.concat(

@@ -2,6 +2,10 @@
 
 wf-cas9 is a [nextflow](https://www.nextflow.io/) workflow
 for the multiplexed analysis of Oxford Nanopore Cas9 enrichment sequencing. 
+
+
+
+
 ## Introduction
 The ONT Cas9 sequencing kit allows the enrichment of genomic
 regions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.
@@ -18,6 +22,10 @@ the enrichment, and a BAM file with target-overlapping reads.
 The main steps of the workflow are alignemnt of reads to the genome using 
 [minimap2](https://github.com/lh3/minimap2) and the analaysis
 of read-target overlap with [bedtools](https://github.com/arq5x/bedtools2).
+
+
+
+
 
 
 
@@ -91,6 +99,10 @@ HTML report:
 * Plots of stranded coverage at each target.
 * Histograms of on and off-target coverage for each sample.
 * Off-target hotspot region tables.
+
+
+
+
 ## Useful links
 
 * [nextflow](https://www.nextflow.io/)
