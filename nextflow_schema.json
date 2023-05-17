@@ -4,6 +4,7 @@
     "title": "epi2me-labs/wf-cas9",
     "description": "Summarise the results of Cas9 enrichment sequencing.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz",
+    "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-cas9",
     "type": "object",
     "definitions": {
@@ -147,6 +148,12 @@
         }
     ],
     "properties": {
+        "process_label": {
+            "type": "string",
+            "description": "The main process label for template processes to use by default",
+            "hidden": true,
+            "default": "cas9"
+        },
         "aws_image_prefix": {
             "type": "string",
             "hidden": true
