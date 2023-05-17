@@ -14,12 +14,12 @@ process summariseReads {
     input:
         tuple path(directory), val(meta)
     output:
-        tuple val(meta.sample_id), path("${meta.sample_id}.stats"), emit: stats
-        tuple val(meta.sample_id), path("${meta.sample_id}.fastq"), emit: reads
+        tuple val(meta.alias), path("${meta.alias}.stats"), emit: stats
+        tuple val(meta.alias), path("${meta.alias}.fastq"), emit: reads
 
     shell:
     """
-    fastcat -s ${meta.sample_id} -r ${meta.sample_id}.stats -x ${directory} > "${meta.sample_id}.fastq"
+    fastcat -s ${meta.alias} -r ${meta.alias}.stats -x ${directory} > "${meta.alias}.fastq"
     """
 }
 
@@ -556,12 +556,13 @@ workflow {
         exit 1
     }
 
-    samples = fastq_ingress([
+    reads = fastq_ingress([
         "input":params.fastq,
         "sample":params.sample,
         "sample_sheet":params.sample_sheet])
+        .map {it -> [it[1], it[0]]}
 
-    pipeline(samples, ref_genome, targets)
+    pipeline(reads, ref_genome, targets)
     output(pipeline.out.results)
 }
 
