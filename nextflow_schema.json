@@ -98,7 +98,7 @@
                 },
                 "minimap2_max_memory": {
                     "type": "string",
-                    "default": "8 GB",
+                    "default": "16 GB",
                     "description": "Maximum allowed memory usage for the minimap2 stage,",
                     "help_text": "The total memory resource used by the workflow is constrained by the executor configuration"
                 }

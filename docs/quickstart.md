@@ -41,9 +41,8 @@ wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-
 ```shell
 nextflow run epi2me-labs/wf-cas9 \
   --fastq wf-cas9-demo/fastq/ \
-  --ref_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
-  --targets wf-cas9-demo/targets.bed \
-  --full_report
+  --reference_genome wf-cas9-demo/grch38/grch38_chr19_22.fa.gz \
+  --targets wf-cas9-demo/targets.bed
 ```
 
 **Workflow outputs**
@@ -56,14 +55,9 @@ The primary outputs of the workflow include:
   * A simple text file providing a summary of sequencing reads (*.stats).
 * sample_summary.csv - read and alignment summary for each sample.
 * target_summary.csv - read and alignment summary for reads overlapping each target.
-* A combined HTML report detailing the primary findings of the workflow across all samples.
-By default, the report contains sequencing quality plots and two tables that summarise targeted sequencing results:
-  * On/off-target reads per sample.
-  * Summaries of each sample/target pair.
-
-Using `--full_report`, the report will also contain the following elements that may be useful for
-diagnosing issues with the experiment. These are turned off by default as they can lead to slow loading of the
-HTML report:
-* Plots of stranded coverage at each target.
-* Histograms of on and off-target coverage for each sample.
-* Off-target hotspot region tables.
+* A combined HTML report detailing the primary findings of the workflow across all samples including:
+  * Sequencing quality plots. 
+  * Tables summarising targeted sequencing results.
+  * Plots of stranded coverage at each target.
+  * Histograms of on and off-target coverage for each sample.
+  * Off-target hotspot region tables.
