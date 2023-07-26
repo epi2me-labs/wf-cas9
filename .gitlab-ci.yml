@@ -12,3 +12,34 @@ variables:
     NF_WORKFLOW_OPTS: "--fastq test_data/fastq \
                         --reference_genome test_data/grch38/grch38_chr19_22.fa.gz \
                         --targets test_data/targets.bed --full_report --threads 4"
+
+
+docker-run:
+  tags: []
+
+  # Define a 1D job matrix to inject a variable named MATRIX_NAME into
+  #   the CI environment, we can use the value of MATRIX_NAME to determine
+  #   which options to apply as part of the rules block below
+  # NOTE There is a slightly cleaner way to define this matrix to include
+  #   the variables, but it is broken when using long strings! See CW-756
+  parallel:
+    matrix:
+      - MATRIX_NAME: ["multi-sample", "one-sample"]
+  rules:
+    # NOTE As we're overriding the rules block for the included docker-run
+    #   we must redefine this CI_COMMIT_BRANCH rule to prevent docker-run
+    #   being incorrectly scheduled for "detached merge request pipelines" etc.
+    - if: ($CI_COMMIT_BRANCH == null || $CI_COMMIT_BRANCH == "dev-template")
+      when: never
+    - if: $MATRIX_NAME == "multi-sample"
+      variables:
+        NF_WORKFLOW_OPTS:
+          "--fastq test_data/fastq \
+          --reference_genome test_data/grch38/grch38_chr19_22.fa.gz \
+          --targets test_data/targets.bed --full_report --threads 4"
+    - if: $MATRIX_NAME == "one-sample"
+      variables:
+        NF_WORKFLOW_OPTS:
+          "--fastq 'test_data/fastq/sample_2/sample_2 ontarget.fastq.gz' \
+          --reference_genome test_data/grch38/grch38_chr19_22.fa.gz \
+          --targets test_data/targets.bed --full_report --threads 4"

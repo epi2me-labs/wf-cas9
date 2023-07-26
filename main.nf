@@ -6,24 +6,6 @@ nextflow.enable.dsl = 2
 include { fastq_ingress } from './lib/fastqingress'
 
 
-process summariseReads {
-    // concatenate fastq and fastq.gz in a dir
-
-   label "cas9"
-    cpus 1
-    input:
-        tuple path(directory), val(meta)
-    output:
-        tuple val(meta.alias), path("${meta.alias}.stats"), emit: stats
-        tuple val(meta.alias), path("${meta.alias}.fastq"), emit: reads
-
-    shell:
-    """
-    fastcat -s ${meta.alias} -r ${meta.alias}.stats -x ${directory} > "${meta.alias}.fastq"
-    """
-}
-
-
 process getVersions {
    label "cas9"
     cpus 1
@@ -55,15 +37,15 @@ process make_tiles {
     label 'cas9'
     cpus 1
     input:
-        path chrom_sizes
-        path targets
+        path "chrom.sizes"
+        path "targets.bed"
     output:
         path 'tiles.bed', emit: tiles
         path 'tiles_int_targets.bed', emit: tiles_inter_targets
     script:
     """
-    bedtools makewindows -g $chrom_sizes -w 100 -i 'srcwinnum' | gzip > tiles.bed
-    bedtools intersect -a tiles.bed -b $targets -wb > tiles_int_targets.bed
+    bedtools makewindows -g chrom.sizes -w 100 -i 'srcwinnum' | gzip > tiles.bed
+    bedtools intersect -a tiles.bed -b targets.bed -wb > tiles_int_targets.bed
     """
 }
 
@@ -74,15 +56,15 @@ process build_index{
     label "cas9"
     cpus params.threads
     input:
-        file reference
+        path "reference"
     output:
         path "genome_index.mmi", emit: index
         path "chrom.sizes", emit: chrom_sizes
     script:
     """
-        minimap2 -t $task.cpus -x map-ont -d genome_index.mmi $reference
-        samtools faidx $reference
-        cut -f 1,2 ${reference}.fai >> chrom.sizes
+        minimap2 -t $task.cpus -x map-ont -d genome_index.mmi reference
+        samtools faidx reference
+        cut -f 1,2 reference.fai >> chrom.sizes
     """
 }
 
@@ -91,25 +73,25 @@ process align_reads {
     cpus params.threads
     memory params.minimap2_max_memory
     input:
-        path index
-        path reference
-        tuple val(sample_id), path(fastq_reads)
+        path "genome_index.mmi"
+        path "reference"
+        tuple val(meta), path("reads.fastq")
     output:
-        path "${sample_id}_aln_stats.csv", emit: aln_stats
-        tuple val(sample_id), path("${sample_id}_fastq_pass.bed"), emit: bed
-        tuple val(sample_id), path("${sample_id}.bam"), emit: bam
+        path "${meta.alias}_aln_stats.csv", emit: aln_stats
+        tuple val(meta), path("${meta.alias}_fastq_pass.bed"), emit: bed
+        tuple val(meta), path("${meta.alias}.bam"), emit: bam
     script:
     """
-    minimap2 -t $task.cpus -ax map-ont $index $fastq_reads | \
-        samtools view -b | samtools sort - | tee ${sample_id}.bam | \
-        bedtools bamtobed -i stdin | bedtools sort > ${sample_id}_fastq_pass.bed
+    minimap2 -t $task.cpus -ax map-ont "genome_index.mmi" "reads.fastq" | \
+        samtools sort -O bam -@ $task.cpus - | tee "${meta.alias}.bam" | \
+        bedtools bamtobed -i stdin | sort -k 1,1 -k2,2n --parallel $task.cpus > "${meta.alias}_fastq_pass.bed"
     # Get a csv with columns: [read_id, alignment_accuracy]
-    samtools index ${sample_id}.bam
-    bamstats ${sample_id}.bam | \
+    samtools index "${meta.alias}.bam"
+    bamstats "${meta.alias}.bam" | \
         # Add sample id column
-        sed "s/\$/\t${sample_id}/" | \
+        sed "s/\$/\t${meta.alias}/" | \
         # Fix header
-        sed '1s/${sample_id}/sample_id/' > ${sample_id}_aln_stats.csv
+        sed '1s/${meta.alias}/sample_id/' > "${meta.alias}_aln_stats.csv"
     """
 }
 
@@ -130,7 +112,7 @@ process target_coverage {
         path 'targets.tsv'
         path 'tiles.tsv'
         path 'tile_target_intersection.tsv'
-        tuple val(sample_id),
+        tuple val(meta),
               path('align.bed')
     output:
         path('target_cov.bed'), emit: target_coverage
@@ -145,22 +127,22 @@ process target_coverage {
     if grep -q "\\W+" align.bed
       then
         cat align.bed | grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - -wa | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${sample_id}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> target_cov.bed
       else
         echo "_\t0\t1\ttest_id\t0\t+" > p.bed
         cat p.bed| grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${sample_id}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> target_cov.bed
     fi
 
     # Add the strand sample_id columns
     if grep -q "\\W-" align.bed
       then
         cat align.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${sample_id}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> target_cov.bed
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
         cat n.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${sample_id}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> target_cov.bed
     fi
     """
 
@@ -186,42 +168,40 @@ process target_summary {
     label "cas9"
     cpus 1
     input:
-        path targets
-        path tiles
-        path tiles_inter_targets
-        path chrom_sizes
-        tuple val(sample_id),
-              path(aln)
+        path "targets.bed"
+        path "tiles.bed"
+        path "tiles_inter_targets.bed"
+        path "chrom.sizes"
+        tuple val(meta),
+              path("align.bed")
     output:
         path('*_target_summary.bed'), emit: table
     script:
     """
     # Map targets to aln.
-    cat $aln | bedtools intersect -a - -b $targets -wb > aln_targets.bed
+    cat "align.bed" | bedtools intersect -a - -b "targets.bed" -wb > aln_targets.bed
 
     # chr, start, stop, target, overlaps, covered_bases, len(target), frac_covered
     # This forms first few columns of output table
-    bedtools coverage -a $targets -b $aln > target_summary_temp.bed
+    bedtools coverage -a "targets.bed" -b "align.bed" > target_summary_temp.bed
 
     # Get alignment coverage at tiles per strand
-    cat $aln | bedtools coverage -a $tiles_inter_targets -b -  > target_cov.bed
+    cat "align.bed" | bedtools coverage -a "tiles_inter_targets.bed" -b -  > target_cov.bed
 
     # Get median coverage (col 9) by target (col 8)
     bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
 
     # Strand bias
-    cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a $targets | cut -f 5  > pos.bed  || true
-
-    cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a $targets | cut -f 5  > neg.bed || true
+    cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a "targets.bed" | cut -f 5  > pos.bed  || true
+    cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a "targets.bed" | cut -f 5  > neg.bed || true
 
     paste target_summary_temp.bed \
         median_coverage.bed \
         pos.bed \
-        neg.bed > ${sample_id}_target_summary.bed
+        neg.bed > ${meta.alias}_target_summary.bed
 
     # Add sample_id column
-    sed "s/\$/\t${sample_id}/" ${sample_id}_target_summary.bed > tmp
-    mv tmp ${sample_id}_target_summary.bed
+    sed -i "s/\$/\t${meta.alias}/" ${meta.alias}_target_summary.bed
 
     rm median_coverage.bed pos.bed neg.bed
     """
@@ -232,12 +212,14 @@ process coverage_summary {
     cpus 1
     input:
         path 'targets.bed'
-        tuple val(sample_id),
+        tuple val(meta),
               path('align.bed')
     output:
-        path("${sample_id}_coverage_summary.csv"), emit: summary
-        path("${sample_id}_read_to_target.bed"), emit: read_to_target
-        tuple val(sample_id), path("*_on_target.bed"), emit: on_target_bed
+        path("${meta.alias}_coverage_summary.csv"), emit: summary
+        path("${meta.alias}_read_to_target.bed"), emit: read_to_target
+        tuple val(meta), 
+              path("*_on_target.bed"), 
+              emit: on_target_bed
     script:
     """
     # Get all non-intersecting reads from aln/targets using '-v'
@@ -245,25 +227,23 @@ process coverage_summary {
         | cut -f 1-4 \
         | awk -F '\\t' -v OFS='\\t' '{print \$0,"off_target"}' > off.bed
 
-    bedtools intersect -a 'align.bed' -b 'targets.bed' -wa -wb | cut -f 1-4,10  > ${sample_id}_on_target.bed
+    bedtools intersect -a 'align.bed' -b 'targets.bed' -wa -wb | cut -f 1-4,10  > "${meta.alias}_on_target.bed"
 
-    numread_on=\$(cat ${sample_id}_on_target.bed | wc -l | tr -d ' ')
+    numread_on=\$(cat "${meta.alias}_on_target.bed" | wc -l | tr -d ' ')
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
-    cat ${sample_id}_on_target.bed off.bed > ${sample_id}_read_to_target.bed
+    cat "${meta.alias}_on_target.bed" off.bed > "${meta.alias}_read_to_target.bed"
 
-    bases_on=\$(cat ${sample_id}_on_target.bed   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
+    bases_on=\$(cat "${meta.alias}_on_target.bed"   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     rm off.bed
 
-    echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${sample_id}_coverage_summary.csv
+    echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${meta.alias}_coverage_summary.csv
 
     # Add sample id columns
-    sed "s/\$/\t${sample_id}/" ${sample_id}_coverage_summary.csv > tmp1
-    mv tmp1 ${sample_id}_coverage_summary.csv
+    sed "s/\$/\t${meta.alias}/" "${meta.alias}_coverage_summary.csv"
 
-    sed "s/\$/\t${sample_id}/" ${sample_id}_read_to_target.bed > tmp2
-    mv tmp2 ${sample_id}_read_to_target.bed
+    sed -i "s/\$/\t${meta.alias}/" "${meta.alias}_read_to_target.bed"
     """
 }
 
@@ -275,7 +255,7 @@ process background {
         path 'targets.tsv'
         path 'tiles.tsv'
         path 'chrom_sizes.tsv'
-        tuple val(sample_id),
+        tuple val(meta),
               path('align.bed')
     output:
         path('off_target_hotspots.bed'), emit: hotspots
@@ -288,7 +268,7 @@ process background {
         | bedtools intersect -v -a align.bed -b - -wa \
         | bedtools coverage -a tiles.tsv -b - \
         | awk '\$5 > 0 {print \$5}' \
-        | sed "s/\$/\t${sample_id}\toff_target/" > off_target_cov_at_tiles.tsv
+        | sed "s/\$/\t${meta.alias}\toff_target/" > off_target_cov_at_tiles.tsv
 
     # write header
     echo "cov\tsample_id\ttarget_status" > coverage_at_tiles.tsv
@@ -298,7 +278,7 @@ process background {
         | bedtools intersect -a align.bed -b - -wa \
         | bedtools coverage -a tiles.tsv -b - \
         | awk '\$5 > 0 {print \$5}' \
-        | sed "s/\$/\t${sample_id}\ton_target/"  >> coverage_at_tiles.tsv
+        | sed "s/\$/\t${meta.alias}\ton_target/"  >> coverage_at_tiles.tsv
 
     # Coverage_at tiles is a TSV with cols: cov, sample_id, target_status (on_target/off_target)
     cat off_target_cov_at_tiles.tsv >> coverage_at_tiles.tsv
@@ -309,7 +289,7 @@ process background {
         cut -f 1-4 > off_target_hotspots.bed
 
     # Cols: chrom. start, stop, coverage, sample_id
-    sed "s/\$/\t${sample_id}/" off_target_hotspots.bed > tmp2
+    sed "s/\$/\t${meta.alias}/" off_target_hotspots.bed > tmp2
     mv tmp2 off_target_hotspots.bed
     """
 }
@@ -319,17 +299,17 @@ process get_on_target_reads {
     label "cas9"
     cpus 1
     input:
-        tuple val(sample_id),
-              path(fastq),
-              path(on_bed)
+        tuple val(meta),
+              path("input.fastq"),
+              path("on_target.bed")
     output:
-         tuple val(sample_id), 
-               path("${sample_id}_ontarget.fastq"), 
+         tuple val(meta), 
+               path("${meta.alias}_ontarget.fastq"), 
                emit: ontarget_fastq
     script:
     """
-    cat $on_bed | cut -f 4 > seqids
-    cat $fastq | seqkit grep -f seqids -o "${sample_id}_ontarget.fastq"
+    cat "on_target.bed" | cut -f 4 > seqids
+    cat "input.fastq"| seqkit grep -f seqids -o "${meta.alias}_ontarget.fastq"
     """
 }
 
@@ -338,18 +318,18 @@ process get_on_target_bams {
     label "cas9"
     cpus 1
     input:
-        tuple val(sample_id), 
-              path(on_target_bed),
-              path(bam)
+        tuple val(meta), 
+              path("on_target.bed"),
+              path("input.bam")
     output:
-        tuple val(sample_id),
-              path("${sample_id}_on_target.bam"),
+        tuple val(meta),
+              path("${meta.alias}_on_target.bam"),
               emit: on_target_bam
 
     script:    
     """
-    samtools view $bam -L $on_target_bed \
-        -O bam > ${sample_id}_on_target.bam
+    samtools view "input.bam" -L "on_target.bed" \
+        -O bam > ${meta.alias}_on_target.bam
     """ 
 }
 
@@ -411,14 +391,14 @@ process pack_files_into_sample_dirs {
     label "cas9"
     cpus 1
     input:
-        tuple val(sample_id),
+        tuple val(meta),
               path(sample_files)
     output:
-        path sample_id, emit: results_dir
+        path "${meta.alias}", emit: results_dir
     """
-    mkdir $sample_id
+    mkdir "${meta.alias}"
     for file in $sample_files; do
-        mv \$file $sample_id
+        mv \$file "${meta.alias}"
     done;
     """
 }
@@ -444,19 +424,28 @@ process output {
 // workflow module
 workflow pipeline {
     take:
-        reads
+        input_reads
         ref_genome
         targets
     main:
+
         build_index(ref_genome)
-        summariseReads(reads)
+
+        // put fastcat stats into results channels
+        stats = input_reads
+        .map { meta, reads, stats_dir -> [meta, stats_dir.resolve('per-read-stats.tsv')] }
+
+        // remove fastcat stats from reads channel
+        reads = input_reads.map { meta, reads, stats_dir -> [meta, reads] }
+
+        //summariseReads(reads)
         software_versions = getVersions()
         workflow_params = getParams()
 
         align_reads(
             build_index.out.index,
             ref_genome,
-            summariseReads.out.reads)
+            reads)
 
         make_tiles(
             build_index.out.chrom_sizes,
@@ -467,7 +456,7 @@ workflow pipeline {
             align_reads.out.bed)
 
         get_on_target_reads(
-            summariseReads.out.reads
+            reads
             .join(coverage_summary.out.on_target_bed))
         
         get_on_target_bams(
@@ -495,7 +484,7 @@ workflow pipeline {
         tile_cov = background.out.tiles_coverage.collectFile(name: 'tile_cov', keepHeader: true)
         bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
 
-         read_stats = summariseReads.out.stats
+        read_stats = stats
                         .map {it -> it[1]}
                         .collectFile(keepHeader:true, name: 'stats')
 
@@ -514,12 +503,12 @@ workflow pipeline {
                     build_tables.out.read_target_summary,
                     bg_hotspots,
         )
-
+      
         pack_files_into_sample_dirs(
             coverage_summary.out.on_target_bed.concat(
             get_on_target_reads.out.ontarget_fastq,
             get_on_target_bams.out.on_target_bam,
-            summariseReads.out.stats).groupTuple())
+            stats).groupTuple())
 
         results = makeReport.out.report
              .concat(build_tables.out.sample_summary,
@@ -556,11 +545,18 @@ workflow {
         exit 1
     }
 
+    // reads = fastq_ingress([
+    //     "input":params.fastq,
+    //     "sample":params.sample,
+    //     "sample_sheet":params.sample_sheet])
+    //     .map {it -> [it[1], it[0]]}
+    
     reads = fastq_ingress([
         "input":params.fastq,
         "sample":params.sample,
-        "sample_sheet":params.sample_sheet])
-        .map {it -> [it[1], it[0]]}
+        "sample_sheet":params.sample_sheet,
+        "fastcat_stats": true
+    ])
 
     pipeline(reads, ref_genome, targets)
     output(pipeline.out.results)
