@@ -74,7 +74,7 @@ def main(args):
             'end': int,
             'read_length': int
         })
-        read_len = df_read_to_taget.groupby(['target']).mean()[['read_length']]
+        read_len = df_read_to_taget.groupby(['target'])[['read_length']].mean()
         read_len.columns = ['mean_read_length']
         if len(read_len) > 0:
             df = df.merge(read_len, left_on='target', right_index=True)

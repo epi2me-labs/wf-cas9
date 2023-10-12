@@ -100,7 +100,7 @@
                 "minimap2_max_memory": {
                     "type": "string",
                     "title": "Minimap2 maximum memory",
-                    "default": "16 GB",
+                    "default": "4 GB",
                     "description": "Maximum allowed memory usage for the minimap2 stage,",
                     "help_text": "The total memory resource used by the workflow is constrained by the executor configuration"
                 }
@@ -121,13 +121,15 @@
                     "type": "boolean",
                     "description": "Display help text.",
                     "fa_icon": "fas fa-question-circle",
-                    "hidden": true
+                    "hidden": true,
+                    "default": false
                 },
                 "version": {
                     "type": "boolean",
                     "description": "Display version and exit.",
                     "fa_icon": "fas fa-question-circle",
-                    "hidden": true
+                    "hidden": true,
+                    "default": false
                 }
             }
         }
