@@ -3,7 +3,7 @@
 import groovy.json.JsonBuilder
 nextflow.enable.dsl = 2
 
-include { fastq_ingress } from './lib/fastqingress'
+include { fastq_ingress } from './lib/ingress'
 
 
 process getVersions {
@@ -217,8 +217,8 @@ process coverage_summary {
     output:
         path("${meta.alias}_coverage_summary.csv"), emit: summary
         path("${meta.alias}_read_to_target.bed"), emit: read_to_target
-        tuple val(meta), 
-              path("*_on_target.bed"), 
+        tuple val(meta),
+              path("*_on_target.bed"),
               emit: on_target_bed
     script:
     """
@@ -303,8 +303,8 @@ process get_on_target_reads {
               path("input.fastq"),
               path("on_target.bed")
     output:
-         tuple val(meta), 
-               path("${meta.alias}_ontarget.fastq"), 
+         tuple val(meta),
+               path("${meta.alias}_ontarget.fastq"),
                emit: ontarget_fastq
     script:
     """
@@ -318,7 +318,7 @@ process get_on_target_bams {
     label "cas9"
     cpus 1
     input:
-        tuple val(meta), 
+        tuple val(meta),
               path("on_target.bed"),
               path("input.bam")
     output:
@@ -326,11 +326,11 @@ process get_on_target_bams {
               path("${meta.alias}_on_target.bam"),
               emit: on_target_bam
 
-    script:    
+    script:
     """
     samtools view "input.bam" -L "on_target.bed" \
         -O bam > ${meta.alias}_on_target.bam
-    """ 
+    """
 }
 
 
@@ -360,7 +360,7 @@ process makeReport {
     input:
         path "versions/*"
         path "params.json"
-        path 'seq_summaries'
+        path 'per-read-stats.tsv'
         path 'tile_coverage.tsv'
         path target_coverage
         path 'target_summary_table.tsv'
@@ -376,7 +376,7 @@ process makeReport {
 
     """
     workflow-glue report $report_name \
-        --read_stats seq_summaries \
+        --read_stats per-read-stats.tsv \
         --versions versions \
         --params params.json \
         --tile_coverage tile_coverage.tsv \
@@ -384,6 +384,21 @@ process makeReport {
         --target_summary target_summary_table.tsv \
         $opttcov \
         $optbghot
+    """
+}
+
+
+process combine_stats {
+    label "cas9"
+    input:
+        tuple val(meta),
+              path('stats.tsv.gz')
+        output:
+            path('stats.tsv')
+    """
+    gunzip -c stats.tsv.gz |
+        # Add sample_id column
+        sed "s/\$/\t${meta.alias}/" > stats.tsv
     """
 }
 
@@ -432,8 +447,8 @@ workflow pipeline {
         build_index(ref_genome)
 
         // put fastcat stats into results channels
-        stats = input_reads
-        .map { meta, reads, stats_dir -> [meta, stats_dir.resolve('per-read-stats.tsv')] }
+        per_read_stats = input_reads
+            .map { meta, reads, stats_dir -> [meta, stats_dir.resolve('per-read-stats.tsv.gz')] }
 
         // remove fastcat stats from reads channel
         reads = input_reads.map { meta, reads, stats_dir -> [meta, reads] }
@@ -458,7 +473,7 @@ workflow pipeline {
         get_on_target_reads(
             reads
             .join(coverage_summary.out.on_target_bed))
-        
+
         get_on_target_bams(
             coverage_summary.out.on_target_bed
             .join(align_reads.out.bam))
@@ -484,31 +499,29 @@ workflow pipeline {
         tile_cov = background.out.tiles_coverage.collectFile(name: 'tile_cov', keepHeader: true)
         bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
 
-        read_stats = stats
-                        .map {it -> it[1]}
-                        .collectFile(keepHeader:true, name: 'stats')
-
         build_tables(
             coverage_summary.out.read_to_target.collectFile(name: 'read_to_target'),
             align_reads.out.aln_stats.collectFile(name: 'aln_stats', keepHeader: true),
             target_summary.out.table.collectFile(name: 'target_summary')
         )
+
         report = makeReport(
                     software_versions,
                     workflow_params,
-                    read_stats,
+                    per_read_stats  | combine_stats | collectFile(keepHeader: true),
                     tile_cov,
                     tar_cov_tsv,
                     build_tables.out.target_summary,
                     build_tables.out.read_target_summary,
                     bg_hotspots,
         )
-      
+
+
         pack_files_into_sample_dirs(
             coverage_summary.out.on_target_bed.concat(
             get_on_target_reads.out.ontarget_fastq,
             get_on_target_bams.out.on_target_bam,
-            stats).groupTuple())
+            per_read_stats).groupTuple())
 
         results = makeReport.out.report
              .concat(build_tables.out.sample_summary,
@@ -524,9 +537,7 @@ workflow pipeline {
 // entrypoint workflow
 WorkflowMain.initialise(workflow, params, log)
 workflow {
-    if (params.disable_ping == false) {
-        Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
-    }
+    Pinguscript.ping_start(nextflow, workflow, params)
 
     ref_genome = file(params.reference_genome, type: "file")
     if (!ref_genome.exists()) {
@@ -538,37 +549,29 @@ workflow {
         println("--targets: File doesn't exist, check path.")
         exit 1
     }
+
     def line
     targets.withReader { line = it.readLine() }
     if (line.split("\t").size() != 4){
-        println('Target file should have 4 cols: chr start end target_name')
-        exit 1
+        error 'Target file should have 4 cols: chr start end target_name'
     }
 
-    // reads = fastq_ingress([
-    //     "input":params.fastq,
-    //     "sample":params.sample,
-    //     "sample_sheet":params.sample_sheet])
-    //     .map {it -> [it[1], it[0]]}
-    
-    reads = fastq_ingress([
-        "input":params.fastq,
+    samples = fastq_ingress([
+        "input":params['fastq'],
         "sample":params.sample,
         "sample_sheet":params.sample_sheet,
-        "fastcat_stats": true
-    ])
+        "analyse_unclassified":params.analyse_unclassified,
+        "stats": true,
+        "fastcat_extra_args": ""])
 
-    pipeline(reads, ref_genome, targets)
+    pipeline(samples, ref_genome, targets)
     output(pipeline.out.results)
 }
 
-if (params.disable_ping == false) {
-    workflow.onComplete {
-        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
-    }
-
-    workflow.onError {
-        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
-    }
+workflow.onComplete {
+    Pinguscript.ping_complete(nextflow, workflow, params)
+}
+workflow.onError {
+    Pinguscript.ping_error(nextflow, workflow, params)
 
 }
