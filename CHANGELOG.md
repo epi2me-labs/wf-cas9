@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unreleased]
 ### Changed
 - Bumped minimum required Nextflow version to '>=23.04.2'
+- Publish target coverage output to output directory.
 
 ## [v0.1.12]
 ### Changed

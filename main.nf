@@ -115,34 +115,34 @@ process target_coverage {
         tuple val(meta),
               path('align.bed')
     output:
-        path('target_cov.bed'), emit: target_coverage
+        tuple val(meta),
+              path("*_target_cov.tsv"),
+              emit: target_coverage
 
 
     script:
     """
-    # Get alignment coverage at tiles per strand
-
-    echo "chr\tstart\tend\ttarget\tcoverage\tstrand\tsample_id" > target_cov.bed
+    # Get alignment coverage at tiles per strand, and add sample_id column
+    echo "chr\tstart\tend\ttarget\tcoverage\tstrand\tsample_id" > "${meta.alias}_target_cov.tsv"
 
     if grep -q "\\W+" align.bed
       then
         cat align.bed | grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - -wa | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> "${meta.alias}_target_cov.tsv"
       else
         echo "_\t0\t1\ttest_id\t0\t+" > p.bed
         cat p.bed| grep "\\W+" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t+\t${meta.alias}/" >> "${meta.alias}_target_cov.tsv"
     fi
 
-    # Add the strand sample_id columns
     if grep -q "\\W-" align.bed
       then
         cat align.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> "${meta.alias}_target_cov.tsv"
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
         cat n.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> target_cov.bed
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> "{meta.alias}_target_cov.tsv"
     fi
     """
 
@@ -446,7 +446,6 @@ workflow pipeline {
 
         build_index(ref_genome)
 
-        // put fastcat stats into results channels
         per_read_stats = input_reads
             .map { meta, reads, stats_dir -> [meta, stats_dir.resolve('per-read-stats.tsv.gz')] }
 
@@ -495,7 +494,9 @@ workflow pipeline {
             build_index.out.chrom_sizes,
             align_reads.out.bed)
 
-        tar_cov_tsv = target_coverage.out.target_coverage.collectFile(name: 'target_coverage', keepHeader: true)
+        tar_cov_tsv = target_coverage.out.target_coverage
+            .collectFile(name: 'target_coverage', keepHeader: true)
+
         tile_cov = background.out.tiles_coverage.collectFile(name: 'tile_cov', keepHeader: true)
         bg_hotspots = background.out.hotspots.collectFile(name: 'hotspots')
 
@@ -516,11 +517,11 @@ workflow pipeline {
                     bg_hotspots,
         )
 
-
         pack_files_into_sample_dirs(
             coverage_summary.out.on_target_bed.concat(
             get_on_target_reads.out.ontarget_fastq,
             get_on_target_bams.out.on_target_bam,
+            target_coverage.out.target_coverage,
             per_read_stats).groupTuple())
 
         results = makeReport.out.report
@@ -541,13 +542,11 @@ workflow {
 
     ref_genome = file(params.reference_genome, type: "file")
     if (!ref_genome.exists()) {
-        println("--ref_genome: File doesn't exist, check path.")
-        exit 1
+        error "--ref_genome: File doesn't exist, check path."
     }
     targets = file(params.targets, type: "file")
     if (!targets.exists()) {
-        println("--targets: File doesn't exist, check path.")
-        exit 1
+        error "--targets: File doesn't exist, check path."
     }
 
     def line

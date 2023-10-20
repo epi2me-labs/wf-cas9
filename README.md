@@ -84,6 +84,7 @@ The primary outputs of the workflow include:
 * A folder per sample containing:
   * BAM file filtered to contain reads overlapping with targets (*_on_target.bam).
   * BED file with alignment information for on-target reads (*on_target.bed).
+  * BED file containing windowed coverage for each target (*target_cov.bed).
   * A simple text file providing a summary of sequencing reads (*.stats).
 * sample_summary.csv - read and alignment summary for each sample.
 * target_summary.csv - read and alignment summary for reads overlapping each target.
