@@ -2,6 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-cas9",
+    "workflow_title": "Cas9 enrichment workflow",
     "description": "Summarise the results of Cas9 enrichment sequencing.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz",
     "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo/aws.nextflow.config",
@@ -96,13 +97,6 @@
                     "description": "Number of CPU threads to use per workflow task.",
                     "help_text": "The total CPU resource used by the workflow is constrained by the executor configuration.",
                     "default": 8
-                },
-                "minimap2_max_memory": {
-                    "type": "string",
-                    "title": "Minimap2 maximum memory",
-                    "default": "4 GB",
-                    "description": "Maximum allowed memory usage for the minimap2 stage,",
-                    "help_text": "The total memory resource used by the workflow is constrained by the executor configuration"
                 }
             }
         },
@@ -171,8 +165,16 @@
             "type": "boolean"
         }
     },
-    "docs": {
-        "intro": "## Introduction\nThe ONT Cas9 sequencing kit allows the enrichment of genomic\nregions of interest by amplifying target regions from adapters ligated to Cas9 cleavage sites.\nThe purpose of this workflow is to assess the effectiveness of such Cas9 enrichment, \nbut it can be applied to other enrichment approaches. The workflow outputs\nhelp assess the effectiveness \nof the enrichement strategy and can be used to diagnose issues such as poorly performing probes.\n\nInputs to the workflow are: a reference genome file, FASTQ reads from enrichment sequencing,\nand a BED file detailing the regions of interests (targets).\nThe main outputs are a report containing summary statistics and plots which give an overview of \nthe enrichment, and a BAM file with target-overlapping reads.\n\nThe main steps of the workflow are alignemnt of reads to the genome using \n[minimap2](https://github.com/lh3/minimap2) and the analaysis\nof read-target overlap with [bedtools](https://github.com/arq5x/bedtools2).\n\n\n\n\n",
-        "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [singularity](https://docs.sylabs.io/guides/3.5/user-guide/introduction.html)"
+    "resources": {
+        "recommended": {
+            "cpus": 16,
+            "memory": "64 GB"
+        },
+        "minimum": {
+            "cpus": 6,
+            "memory": "16 GB"
+        },
+        "run_time": "Approximately 30 minutes to process a single sample of 100K reads wit the minimum requirements.",
+        "arm_support": true
     }
 }
