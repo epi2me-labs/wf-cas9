@@ -9,6 +9,7 @@ include { fastq_ingress } from './lib/ingress'
 process getVersions {
    label "cas9"
     cpus 1
+    memory "2 GB"
     output:
         path "versions.txt"
     script:
@@ -22,7 +23,8 @@ process getVersions {
 
 process getParams {
    label "cas9"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     output:
         path "params.json"
     script:
@@ -35,7 +37,8 @@ process getParams {
 
 process make_tiles {
     label 'cas9'
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         path "chrom.sizes"
         path "targets.bed"
@@ -55,6 +58,7 @@ process build_index{
     */
     label "cas9"
     cpus params.threads
+    memory "16 GB"
     input:
         path "reference"
     output:
@@ -62,7 +66,7 @@ process build_index{
         path "chrom.sizes", emit: chrom_sizes
     script:
     """
-        minimap2 -t $task.cpus -x map-ont -d genome_index.mmi reference
+        minimap2 -t $task.cpus -I 16G -x map-ont -d genome_index.mmi reference
         samtools faidx reference
         cut -f 1,2 reference.fai >> chrom.sizes
     """
@@ -70,21 +74,22 @@ process build_index{
 
 process align_reads {
     label "cas9"
-    cpus params.threads
-    memory params.minimap2_max_memory
+    cpus Math.min(params.threads, 20)
+    memory "16 GB"
     input:
         path "genome_index.mmi"
-        path "reference"
+        path reference_fasta
         tuple val(meta), path("reads.fastq")
     output:
         path "${meta.alias}_aln_stats.csv", emit: aln_stats
         tuple val(meta), path("${meta.alias}_fastq_pass.bed"), emit: bed
         tuple val(meta), path("${meta.alias}.bam"), emit: bam
     script:
+    def mm2_threads = Math.max(task.cpus - 4, 1)
     """
-    minimap2 -t $task.cpus -ax map-ont "genome_index.mmi" "reads.fastq" | \
-        samtools sort -O bam -@ $task.cpus - | tee "${meta.alias}.bam" | \
-        bedtools bamtobed -i stdin | sort -k 1,1 -k2,2n --parallel $task.cpus > "${meta.alias}_fastq_pass.bed"
+    minimap2 -t ${mm2_threads} -K 20M -ax map-ont "${reference_fasta}" "reads.fastq" | \
+        samtools sort -m 400M -O bam -@ 2 - | tee "${meta.alias}.bam" | \
+        bedtools bamtobed -i stdin | sort -k 1,1 -k2,2n > "${meta.alias}_fastq_pass.bed"
     # Get a csv with columns: [read_id, alignment_accuracy]
     samtools index "${meta.alias}.bam"
     bamstats "${meta.alias}.bam" | \
@@ -107,7 +112,8 @@ process target_coverage {
 
      */
     label "cas9"
-    cpus 1
+    cpus 3
+    memory "2 GB"
     input:
         path 'targets.tsv'
         path 'tiles.tsv'
@@ -166,7 +172,8 @@ process target_summary {
         strand reads
     */
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         path "targets.bed"
         path "tiles.bed"
@@ -209,7 +216,8 @@ process target_summary {
 
 process coverage_summary {
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         path 'targets.bed'
         tuple val(meta),
@@ -250,7 +258,8 @@ process coverage_summary {
 
 process background {
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "4 GB"
     input:
         path 'targets.tsv'
         path 'tiles.tsv'
@@ -297,7 +306,8 @@ process background {
 
 process get_on_target_reads {
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         tuple val(meta),
               path("input.fastq"),
@@ -317,6 +327,7 @@ process get_on_target_reads {
 process get_on_target_bams {
     label "cas9"
     cpus 1
+    memory "2 GB"
     input:
         tuple val(meta),
               path("on_target.bed"),
@@ -336,7 +347,7 @@ process get_on_target_bams {
 
 process build_tables {
     label "cas9"
-    cpus 1
+    cpus 2
     input:
         path 'read_to_target.tsv'
         path 'aln_summary.tsv'
@@ -356,7 +367,8 @@ process build_tables {
 
 process makeReport {
    label "cas9"
-   cpus 1
+   cpus 2
+   memory "4 GB"
     input:
         path "versions/*"
         path "params.json"
@@ -390,6 +402,8 @@ process makeReport {
 
 process combine_stats {
     label "cas9"
+    cpus 2
+    memory "2 GB"
     input:
         tuple val(meta),
               path('stats.tsv.gz')
@@ -404,7 +418,8 @@ process combine_stats {
 
 process pack_files_into_sample_dirs {
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "2 GB"
     input:
         tuple val(meta),
               path(sample_files)
@@ -424,7 +439,8 @@ process pack_files_into_sample_dirs {
 process output {
     // publish inputs to output directory
     label "cas9"
-    cpus 1
+    cpus 2
+    memory "4 GB"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
         path fname
@@ -542,7 +558,7 @@ workflow {
 
     ref_genome = file(params.reference_genome, type: "file")
     if (!ref_genome.exists()) {
-        error "--ref_genome: File doesn't exist, check path."
+        error "--reference_genome: File doesn't exist, check path."
     }
     targets = file(params.targets, type: "file")
     if (!targets.exists()) {

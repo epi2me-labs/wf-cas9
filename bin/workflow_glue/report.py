@@ -186,7 +186,7 @@ def tiled_coverage_hist(report, tiled_coverage_tsv):
     Show on-target / off-target coverage at 100bp tiled genome bins.
     """
     with report.add_section('Coverage distribution', 'Coverage distribution'):
-        p('''Theese plots show the on-target / off-target coverage distribution
+        p('''These plots show the on-target / off-target coverage distribution
             of genomic regions binned by 100bp.
             Off-target regions are defined as any region not
             within 1kb of a target.

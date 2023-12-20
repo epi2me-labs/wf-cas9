@@ -51,14 +51,14 @@ def main(args):
 
     frames = []
 
-    df_read_to_taget = pd.read_csv(
+    df_read_to_target = pd.read_csv(
         args.read_to_target, sep='\t',
         names=['chr', 'start', 'end', 'read_id', 'target', 'sample_id'],
         index_col=False)
 
     read_stats_df = pd.read_csv(args.aln_summary, sep='\t', index_col=False)
 
-    df_read_to_taget = df_read_to_taget.merge(
+    df_read_to_target = df_read_to_target.merge(
         read_stats_df[['name', 'read_length']],
         left_on='read_id', right_on='name')
 
@@ -69,19 +69,33 @@ def main(args):
         df = df.drop(columns=['sample_id'])
         if len(df) == 0:
             continue
-        df_read_to_taget = df_read_to_taget.astype({
+        df_read_to_target = df_read_to_target.astype({
             'start': int,
             'end': int,
             'read_length': int
         })
-        read_len = df_read_to_taget.groupby(['target'])[['read_length']].mean()
-        read_len.columns = ['mean_read_length']
+        read_len = (
+            df_read_to_target[['target', 'read_length']]
+            .groupby(['target'])
+            .agg(mean_read_length=('read_length', 'mean'))
+            )
+
         if len(read_len) > 0:
             df = df.merge(read_len, left_on='target', right_index=True)
         else:
             df['mean_read_length'] = 0
 
-        kbases = df_read_to_taget.groupby(['target']).sum()[['read_length']] / 1000
+        df_read_to_target['align_len'] = (
+            df_read_to_target['end'] - df_read_to_target['start']
+        )
+
+        # Kbases is the approximate number of bases mapping to a target.
+        # Deletions and insertions within the reads will mean the actual value may
+        # vary slightly
+        kbases = (
+            df_read_to_target[['target', 'align_len']]
+            .groupby(['target']).sum() / 1000
+        )
         kbases.columns = ['kbases']
         if len(kbases) > 0:
             df = df.merge(kbases, left_on='target', right_index=True)
@@ -144,5 +158,5 @@ def main(args):
 
     sample_summary.to_csv('sample_summary.csv')
 
-    read_target_summary_table = read_target_summary(df_read_to_taget)
+    read_target_summary_table = read_target_summary(df_read_to_target)
     read_target_summary_table.to_csv('read_target_summary.tsv', sep='\t')
