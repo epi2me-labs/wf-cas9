@@ -511,6 +511,7 @@ workflow pipeline {
             align_reads.out.bed)
 
         tar_cov_tsv = target_coverage.out.target_coverage
+            .map {meta, target_cov -> target_cov}
             .collectFile(name: 'target_coverage', keepHeader: true)
 
         tile_cov = background.out.tiles_coverage.collectFile(name: 'tile_cov', keepHeader: true)

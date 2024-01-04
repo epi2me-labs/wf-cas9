@@ -59,8 +59,8 @@ def main(args):
     read_stats_df = pd.read_csv(args.aln_summary, sep='\t', index_col=False)
 
     df_read_to_target = df_read_to_target.merge(
-        read_stats_df[['name', 'read_length']],
-        left_on='read_id', right_on='name')
+        read_stats_df[['sample_id', 'name', 'read_length']],
+        left_on=['sample_id', 'read_id'], right_on=['sample_id', 'name'])
 
     df_target_summary = pd.read_csv(
         args.target_summary, sep='\t', names=header, index_col=False)
@@ -93,7 +93,8 @@ def main(args):
         # Deletions and insertions within the reads will mean the actual value may
         # vary slightly
         kbases = (
-            df_read_to_target[['target', 'align_len']]
+            df_read_to_target[
+                df_read_to_target.sample_id == id_][['target', 'align_len']]
             .groupby(['target']).sum() / 1000
         )
         kbases.columns = ['kbases']
