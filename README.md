@@ -87,7 +87,30 @@ Find related protocols in the [Nanopore community](https://community.nanoporetec
 
 
 
-## Inputs
+## Input example
+
+<!---Example of input directory structure, delete and edit as appropriate per workflow.--->
+This workflow accepts FASTQ files as input.
+
+The FASTQ input parameters for this workflow accept one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second cases (i and ii), a sample name can be supplied with `--sample`. In the last case (iii), the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`.
+
+```
+(i)                     (ii)                 (iii)
+input_reads.fastq   ─── input_directory  ─── input_directory
+                        ├── reads0.fastq     ├── barcode01
+                        └── reads1.fastq     │   ├── reads0.fastq
+                                             │   └── reads1.fastq
+                                             ├── barcode02
+                                             │   ├── reads0.fastq
+                                             │   ├── reads1.fastq
+                                             │   └── reads2.fastq
+                                             └── barcode03
+                                              └── reads0.fastq
+```
+
+
+
+## Input parameters
 
 ### Input Options
 
@@ -115,6 +138,13 @@ Find related protocols in the [Nanopore community](https://community.nanoporetec
 | full_report | boolean | Select this option to write a full report that contains plots giving a graphical representation of coverage at each target region. | In cases where there are many target to visualise, the report loading time can be slow and so it's is recommended to set `full_report` to false in such cases. | False |
 
 
+### Advanced Options
+
+| Nextflow parameter name  | Type | Description | Help | Default |
+|--------------------------|------|-------------|------|---------|
+| threads | integer | Number of CPU threads to use per workflow task. | The total CPU resource used by the workflow is constrained by the executor configuration. | 8 |
+
+
 ### Miscellaneous Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |
@@ -128,7 +158,7 @@ Find related protocols in the [Nanopore community](https://community.nanoporetec
 
 ## Outputs
 
-Outputs files may be aggregated including information for all samples or provided per sample. Per-sample files will be prefixed with respective aliases and represented below as {{ alias }}.
+Output files may be aggregated including information for all samples or provided per sample. Per-sample files will be prefixed with respective aliases and represented below as {{ alias }}.
 
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
