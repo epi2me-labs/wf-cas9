@@ -24,6 +24,13 @@
 | full_report | boolean | Select this option to write a full report that contains plots giving a graphical representation of coverage at each target region. | In cases where there are many target to visualise, the report loading time can be slow and so it's is recommended to set `full_report` to false in such cases. | False |
 
 
+### Advanced Options
+
+| Nextflow parameter name  | Type | Description | Help | Default |
+|--------------------------|------|-------------|------|---------|
+| threads | integer | Number of CPU threads to use per workflow task. | The total CPU resource used by the workflow is constrained by the executor configuration. | 8 |
+
+
 ### Miscellaneous Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |
