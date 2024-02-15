@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.0]
+### Added
+- A column with sequencing run IDs to the output summary CSV files.
+
+### Changed
+- Minor formatting changes of github issue template.
+
 ## [v1.0.1]
 ### Fixed
 - Overestimation of kbases mapped values.
@@ -14,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory and CPU requirements for each process.
 
 ### Changed
-- Documentation updated to new format. 
+- Documentation updated to new format.
 - Bumped minimum required Nextflow version to '>=23.04.2'
 - Publish target coverage output to output directory.
 
@@ -25,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Inputs file names and directories can now contain spaces.
-- Replaced --threads option in fastqingress with hardcoded values to remove warning about undefined `param.threads`. 
+- Replaced --threads option in fastqingress with hardcoded values to remove warning about undefined `param.threads`.
 - Handling for file and directory names that contain spaces.
 
 ## [v0.1.11]
