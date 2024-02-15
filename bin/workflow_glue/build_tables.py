@@ -47,7 +47,7 @@ def main(args):
     """Entry point."""
     header = [
         'chr', 'start', 'end', 'target', 'nreads', 'nbases',
-        'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id']
+        'tsize', 'coverage_frac', 'median_cov', 'p', 'n', 'sample_id', 'run_ids']
 
     frames = []
 
@@ -125,7 +125,7 @@ def main(args):
             'mean_read_length': 1})
 
         df_all = df_all[[
-            'sample', 'chr', 'start', 'end', 'target', 'tsize',
+            'sample', 'run_ids', 'chr', 'start', 'end', 'target', 'tsize',
             'kbases', 'coverage_frac', 'median_cov', 'nreads',
             'mean_read_length', 'strand_bias']]
         df_all.sort_values(
@@ -149,11 +149,16 @@ def main(args):
         sample_df['nreads'] = df['nreads'].sum()
         sample_df = sample_df.round(2)
         sample_df['sample_id'] = sid
+        # the `run_ids` column should contain the same value for all rows for this
+        # sample
+        sample_df["run_ids"], = df["run_ids"].unique()
         dfs.append(sample_df)
 
     if dfs:
         sample_summary = pd.concat(dfs, axis=1).T
         sample_summary.set_index('sample_id', drop=True, inplace=True)
+        # move the `run_ids` column to the beginning of the dataframe
+        sample_summary.insert(0, "run_ids", sample_summary.pop("run_ids"))
     else:
         sample_summary = pd.DataFrame()
 
