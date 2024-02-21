@@ -210,7 +210,7 @@ process target_summary {
     # Add sample_id column
     sed -i "s/\$/\t${meta.alias}/" ${meta.alias}_target_summary.bed
 
-    # Add run_ids column
+    # Add run_id column
     sed -i "s/\$/\t${meta.run_ids.join(',')}/" ${meta.alias}_target_summary.bed
 
     rm median_coverage.bed pos.bed neg.bed
