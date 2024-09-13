@@ -31,10 +31,3 @@
 | threads | integer | Number of CPU threads to use per workflow task. | The total CPU resource used by the workflow is constrained by the executor configuration. | 8 |
 
 
-### Miscellaneous Options
-
-| Nextflow parameter name  | Type | Description | Help | Default |
-|--------------------------|------|-------------|------|---------|
-| disable_ping | boolean | Enable to prevent sending a workflow ping. |  | False |
-
-
