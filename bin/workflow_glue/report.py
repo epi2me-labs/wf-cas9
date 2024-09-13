@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Create workflow report."""
+from math import pi
 from pathlib import Path
 
 from dominate.tags import h6, p
@@ -10,15 +11,13 @@ from ezcharts.components.fastcat import SeqSummary
 from ezcharts.components.reports.labs import LabsReport
 from ezcharts.components.theme import LAB_head_resources
 from ezcharts.layout.snippets import DataTable, Grid, Tabs
-from ezcharts.plots import AxisLabelFormatter, util
+from ezcharts.plots import util
 from ezcharts.util import get_named_logger
 import pandas as pd
 
 from .util import wf_parser  # noqa: ABS101
 
 # Setup simple globals
-WORKFLOW_NAME = 'wf-cas9'
-REPORT_TITLE = f'{WORKFLOW_NAME} report'
 Colors = util.Colors
 
 
@@ -57,6 +56,9 @@ def argparser():
     parser.add_argument(
         "--off_target_hotspots", required=False, default=None,
         type=Path, help="Tiled background coverage")
+    parser.add_argument(
+        "--wf_version", default='unknown',
+        help="version of the executed workflow")
     return parser
 
 
@@ -90,23 +92,16 @@ def target_table_and_plots(report, target_coverages, target_summaries):
 
                         plot = ezc.lineplot(
                             df_target,
+                            title=target,
                             x=chrom,
                             y='coverage',
                             hue='strand',
-                            markers=False)
+                            marker=False)
 
-                        fmt = AxisLabelFormatter(sci_notation=False)
-
-                        for s in plot.series:
-                            s.showSymbol = False  # Add this to ezcharts (markers)
-
-                        plot.xAxis.axisLabel = dict(formatter=fmt)
-
-                        plot.xAxis.min = df_target[chrom].min()
-                        plot.title = dict(text=target)
-                        plot.legend = dict(
-                                orient='horizontal', top=30, icon='rect')
-                        plot.xAxis.axisLabel.rotate = 30
+                        plot._fig.x_range.start = df_target[chrom].min()
+                        plot._fig.xaxis.major_label_orientation = 35 * (pi / 180)
+                        plot._fig.xaxis.major_label_standoff = 5
+                        plot._fig.add_layout(plot._fig.legend[0], 'right')
 
                         EZChart(plot, theme='epi2melabs', height='250px')
 
@@ -206,12 +201,11 @@ def tiled_coverage_hist(report, tiled_coverage_tsv):
         with Grid(columns=n_columns):
             for i, (sample_id, df) in enumerate(df_all.groupby('sample_id')):
                 plot = ezc.histplot(
-                    df, bins=5, hue='target_status', stat='proportion')
-                plot.xAxis.name = 'coverage'
-                plot.yAxis.name = 'Proportion of reads'
-                plot.title = dict(text=sample_id)
-                plot.xAxis.axisLabel = dict(rotate=30)
-                plot.legend = dict(orient='horizontal', top=30)
+                    df, title=sample_id, bins=5, hue='target_status', stat='proportion')
+                plot._fig.xaxis.axis_label = 'coverage'
+                plot._fig.yaxis.axis_label = 'Proportion of reads'
+                plot._fig.xaxis.major_label_orientation = 30 * (pi / 180)
+                # legend not working
                 EZChart(plot, theme='epi2melabs', height='250px')
 
 
@@ -254,8 +248,8 @@ def main(args):
     logger.info('Building report')
 
     report = LabsReport(
-        REPORT_TITLE, WORKFLOW_NAME, args.params, args.versions,
-        head_resources=[*LAB_head_resources])
+        'Workflow Cas9', 'wf-cas9', args.params, args.versions,
+        args.wf_version, head_resources=[*LAB_head_resources])
 
     with report.add_section('Introduction', 'Intro'):
         p('''
@@ -276,8 +270,6 @@ def main(args):
     coverage_summary_table(report, args.coverage_summary)
 
     target_table_and_plots(report, args.target_coverage, args.target_summary)
-    # plot_target_coverage(report, args.target_coverage)
-    # make_target_summary_table(report, args.target_summary)
 
     tiled_coverage_hist(report, args.tile_coverage)
 

@@ -369,7 +369,7 @@ process build_tables {
 }
 
 process makeReport {
-   label "cas9"
+   label "wf_common"
    cpus 2
    memory "4 GB"
     input:
@@ -381,6 +381,7 @@ process makeReport {
         path 'target_summary_table.tsv'
         path 'coverage_summary.tsv'
         path off_target_hotspots
+        val wf_version
 
     output:
         path "wf-cas9-*.html", emit: report
@@ -397,6 +398,7 @@ process makeReport {
         --tile_coverage tile_coverage.tsv \
         --coverage_summary coverage_summary.tsv \
         --target_summary target_summary_table.tsv \
+        --wf_version $wf_version \
         $opttcov \
         $optbghot
     """
@@ -535,6 +537,7 @@ workflow pipeline {
                     build_tables.out.target_summary,
                     build_tables.out.read_target_summary,
                     bg_hotspots,
+                    workflow.manifest.version
         )
 
         pack_files_into_sample_dirs(
@@ -581,6 +584,7 @@ workflow {
         "sample_sheet":params.sample_sheet,
         "analyse_unclassified":params.analyse_unclassified,
         "stats": true,
+        "per_read_stats": true,
         "fastcat_extra_args": ""])
 
     pipeline(samples, ref_genome, targets)
