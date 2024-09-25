@@ -81,12 +81,10 @@ def target_table_and_plots(report, target_coverages, target_summaries):
         main_df = pd.read_csv(target_coverages, sep='\t')
 
         for sample_id, df in main_df.groupby('sample_id'):
-            if sample_id == 'sample_id':
-                continue
             with tabs.add_tab(sample_id):
                 with Grid(columns=4):
                     for target, df_target in df.groupby('target'):
-                        chrom = df.loc[df.index[0], 'chr']
+                        chrom = df_target.loc[df_target.index[0], 'chr']
                         # Show chrom as xAxis label
                         df_target = df_target.rename(columns={'start': chrom})
 

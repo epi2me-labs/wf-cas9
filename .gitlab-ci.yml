@@ -24,7 +24,7 @@ docker-run:
   #   the variables, but it is broken when using long strings! See CW-756
   parallel:
     matrix:
-      - MATRIX_NAME: ["multi-sample", "one-sample"]
+      - MATRIX_NAME: ["multi-sample", "one-sample", "integration-test"]
   rules:
     # NOTE As we're overriding the rules block for the included docker-run
     #   we must redefine this CI_COMMIT_BRANCH rule to prevent docker-run
@@ -43,3 +43,20 @@ docker-run:
           "-executor.\\$$local.memory 16GB --fastq 'test_data/fastq/sample_2/sample_2 ontarget.fastq.gz' \
           --reference_genome test_data/grch38/grch38_chr19_22.fa.gz \
           --targets test_data/targets.bed --full_report --threads 4"
+    - if: $MATRIX_NAME == "integration-test"
+      variables:
+        NF_WORKFLOW_OPTS:
+          "-executor.\\$$local.memory 16GB --fastq test/data/fastq/ \
+          --reference_genome test/data/cas9_integration.fa \
+          --targets test/data/cas9_integration.bed --full_report --threads 4"
+
+integration_test:
+  extends: .setup-alpine-nextflow
+  dependencies: ["docker-run: [integration-test]"]
+  stage: post-test
+  script:
+    - echo "ls" && ls
+    - ls wf-cas9
+    - SHA=$(./nextflow config -properties|grep ${PYTEST_CONTAINER_CONFIG_KEY}|awk -F= '{print $2}')
+    - IMAGE="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${SHA}"
+    - docker run -u $(id -u) -v ${PWD}:/host $IMAGE pytest /host/test/workflow_integration.py;

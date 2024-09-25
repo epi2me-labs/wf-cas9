@@ -148,7 +148,7 @@ process target_coverage {
       else
         echo "_\t0\t1\ttest_id\t0\t-\n" > n.bed;
         cat n.bed | grep "\\W-" | bedtools coverage -a tile_target_intersection.tsv -b - | \
-            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> "{meta.alias}_target_cov.tsv"
+            cut -f 1,2,3,8,9 | sed "s/\$/\t-\t${meta.alias}/" >> "${meta.alias}_target_cov.tsv"
     fi
     """
 
@@ -186,34 +186,37 @@ process target_summary {
     script:
     """
     # Map targets to aln.
-    cat "align.bed" | bedtools intersect -a - -b "targets.bed" -wb > aln_targets.bed
+    cat "align.bed" | bedtools intersect -a - -b "targets.bed" -wb  > aln_targets.bed
 
     # chr, start, stop, target, overlaps, covered_bases, len(target), frac_covered
-    # This forms first few columns of output table
-    bedtools coverage -a "targets.bed" -b "align.bed" > target_summary_temp.bed
+    # This forms first few columns of output table. Sort by target
+    bedtools coverage -a "targets.bed" -b "align.bed" | sort -k 4 > target_summary_temp.bed
 
     # Get alignment coverage at tiles per strand
     cat "align.bed" | bedtools coverage -a "tiles_inter_targets.bed" -b -  > target_cov.bed
 
     # Get median coverage (col 9) by target (col 8)
-    bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | cut -f 2  > median_coverage.bed
+    bedtools groupby -i target_cov.bed -g 8 -c 9 -o median | sort -k 1 | cut -f 2  > median_coverage.bed
 
     # Strand bias
-    cat aln_targets.bed | grep "\\W+\\W" | bedtools coverage -b - -a "targets.bed" | cut -f 5  > pos.bed  || true
-    cat aln_targets.bed | grep "\\W-\\W" | bedtools coverage -b - -a "targets.bed" | cut -f 5  > neg.bed || true
+    # First add strand column to the targets BED
+    cat targets.bed | awk -v OFS="\t" '{print \$0, "0", "+"}' > target_strand.bed
+    # Then get coverage per strand
+    cat aln_targets.bed | bedtools coverage -s -b - -a target_strand.bed |  sort -k 4 | cut -f 7  > pos.bed  || true
+    cat aln_targets.bed | bedtools coverage -S -b - -a target_strand.bed |  sort -k 4 | cut -f 7  > neg.bed || true
 
     paste target_summary_temp.bed \
         median_coverage.bed \
         pos.bed \
-        neg.bed > ${meta.alias}_target_summary.bed
+        neg.bed > tmp1
 
     # Add sample_id column
-    sed -i "s/\$/\t${meta.alias}/" ${meta.alias}_target_summary.bed
+    sed "s/\$/\t${meta.alias}/" tmp1 > tmp2
 
     # Add run_id column
-    sed -i "s/\$/\t${meta.run_ids.join(',')}/" ${meta.alias}_target_summary.bed
+    sed "s/\$/\t${meta.run_ids.join(',')}/" tmp2 > ${meta.alias}_target_summary.bed
 
-    rm median_coverage.bed pos.bed neg.bed
+    rm median_coverage.bed pos.bed neg.bed tmp1 tmp2
     """
 }
 
@@ -243,7 +246,7 @@ process coverage_summary {
     numread_on=\$(cat "${meta.alias}_on_target.bed" | wc -l | tr -d ' ')
     numread_off=\$(cat off.bed | wc -l | tr -d ' ')
 
-    cat "${meta.alias}_on_target.bed" off.bed > "${meta.alias}_read_to_target.bed"
+    cat "${meta.alias}_on_target.bed" off.bed > tmp
 
     bases_on=\$(cat "${meta.alias}_on_target.bed"   | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
     bases_off=\$(cat off.bed | awk -F'\t' 'BEGIN{SUM=0}{ SUM+=\$3-\$2 }END{print SUM}')
@@ -252,9 +255,7 @@ process coverage_summary {
     echo "\${numread_on}\t\${numread_off}\n\${bases_on}\t\${bases_off}" > ${meta.alias}_coverage_summary.csv
 
     # Add sample id columns
-    sed "s/\$/\t${meta.alias}/" "${meta.alias}_coverage_summary.csv"
-
-    sed -i "s/\$/\t${meta.alias}/" "${meta.alias}_read_to_target.bed"
+    sed "s/\$/\t${meta.alias}/" tmp > "${meta.alias}_read_to_target.bed"
     """
 }
 
