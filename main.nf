@@ -8,6 +8,7 @@ include { fastq_ingress } from './lib/ingress'
 
 process getVersions {
    label "cas9"
+   publishDir "${params.out_dir}", mode: 'copy', pattern: "versions.txt"
     cpus 1
     memory "2 GB"
     output:
@@ -23,6 +24,7 @@ process getVersions {
 
 process getParams {
    label "cas9"
+   publishDir "${params.out_dir}", mode: 'copy', pattern: "params.json"
     cpus 2
     memory "2 GB"
     output:
@@ -371,6 +373,7 @@ process build_tables {
 
 process makeReport {
    label "wf_common"
+   publishDir "${params.out_dir}", mode: 'copy', pattern: "wf-cas9-*.html"
    cpus 2
    memory "4 GB"
     input:
@@ -442,7 +445,7 @@ process pack_files_into_sample_dirs {
 // See https://github.com/nextflow-io/nextflow/issues/1636
 // This is the only way to publish files from a workflow whilst
 // decoupling the publish from the process steps.
-process output {
+process publish {
     // publish inputs to output directory
     label "cas9"
     cpus 2
@@ -555,7 +558,6 @@ workflow pipeline {
 
     emit:
         results
-        telemetry = workflow_params
 }
 
 
@@ -589,7 +591,7 @@ workflow {
         "fastcat_extra_args": ""])
 
     pipeline(samples, ref_genome, targets)
-    output(pipeline.out.results)
+    publish(pipeline.out.results)
 }
 
 workflow.onComplete {

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Bug that caused incorrect `median_coverage` and `mean_read_length` in `target_summary.csv`
 - `kbases` in `target_summary.csv` now reports total kbases mapped not mean per target.
+### Changed
+- Reconcile with template 5.3.0 and 5.3.1
 
 ## [v1.1.2]
 ### Changed
