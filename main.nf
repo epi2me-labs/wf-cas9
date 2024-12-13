@@ -24,6 +24,7 @@ process getVersions {
 
 process getParams {
    label "cas9"
+   cache false
    publishDir "${params.out_dir}", mode: 'copy', pattern: "params.json"
     cpus 2
     memory "2 GB"
