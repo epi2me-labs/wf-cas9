@@ -3,7 +3,7 @@
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-cas9",
     "workflow_title": "Cas9 enrichment workflow",
-    "description": "Summarise the results of Cas9 enrichment sequencing.",
+    "description": "Summarise the results of Cas9 enrichment nanopore sequencing data.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo.tar.gz",
     "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-cas9/wf-cas9-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-cas9",
@@ -175,6 +175,6 @@
             "memory": "16 GB"
         },
         "run_time": "Approximately 30 minutes to process a single sample of 100K reads wit the minimum requirements.",
-        "arm_support": true
+        "arm_support": false
     }
 }
