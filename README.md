@@ -1,6 +1,6 @@
 # Cas9 enrichment workflow
 
-Summarise the results of Cas9 enrichment sequencing.
+Summarise the results of Cas9 enrichment nanopore sequencing data.
 
 
 
@@ -36,7 +36,7 @@ Minimum requirements:
 
 Approximate run time: Approximately 30 minutes to process a single sample of 100K reads wit the minimum requirements.
 
-ARM processor support: True
+ARM processor support: False
 
 
 

@@ -1,1 +1,1 @@
-Summarise the results of Cas9 enrichment sequencing.
+Summarise the results of Cas9 enrichment nanopore sequencing data.
