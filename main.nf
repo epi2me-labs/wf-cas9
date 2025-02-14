@@ -61,7 +61,7 @@ process build_index{
     */
     label "cas9"
     cpus params.threads
-    memory "16 GB"
+    memory "15 GB"
     input:
         path "reference"
     output:
@@ -78,7 +78,7 @@ process build_index{
 process align_reads {
     label "cas9"
     cpus Math.min(params.threads, 20)
-    memory "16 GB"
+    memory "15 GB"
     input:
         path "genome_index.mmi"
         path reference_fasta
