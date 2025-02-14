@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Update project description.
 - Reconcile workflow with wf-template v5.3.4.
+- Minor decrease to some memory directives to avoid “Process requirement exceeds available memory” errors when running in WSL.
 
 ## [v1.1.3]
 ### Fixed
