@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.2.0]
+
+This workflow is deprecated. It is not longer proactively 
+maintained; and reactive maintainance is sporadic and low priority for our
+developers. Although the repository is still available, it is now unsupported
+and we do not recommend its use. Please contact support@nanoporetech.com for
+help with your application.
+
 ### Changed
 - Update project description.
 - Reconcile workflow with wf-template v5.3.4.
